@@ -44,6 +44,15 @@ auto_detect_alpine()
 	#fi
 }
 
+auto_detect_recovery()
+{
+	find /sys -name modalias -type f -print0 2> /dev/null | xargs -0 sort -u \
+		| xargs modprobe -b -a 2> /dev/null
+	# we run it twice so we detect all devices
+	find /sys -name modalias -type f -print0 2> /dev/null | xargs -0 sort -u \
+		| xargs modprobe -b -a 2> /dev/null
+}
+
 load_modules()
 {
 	case "$AUTO_LOAD" in
