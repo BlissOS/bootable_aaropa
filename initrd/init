@@ -305,6 +305,10 @@ setup_loop()
 
 setup_ab_loops()
 {
+	if [ -n "$RCVRY" ]; then
+		mkdir -p /dev/block/by-name
+	fi
+
 	if [ ! -z "$SLOT" ]; then
 		if [ "$SLOT" = "_a" ]; then
 			ln -s $(setup_loop /mnt/$SRC/system_b.img) /dev/block/by-name/system_b
@@ -317,6 +321,19 @@ setup_ab_loops()
 		ln -s $(setup_loop /mnt/$SRC/kernel_a) /dev/block/by-name/kernel_a
 		ln -s $(setup_loop /mnt/$SRC/kernel_b) /dev/block/by-name/kernel_b
 		ln -s $(setup_loop /mnt/$SRC/misc.img) /dev/block/by-name/misc
+		ln -s $(setup_loop /mnt/$SRC/recovery.img) /dev/block/by-name/recovery
+	else
+		if [ -e "/sfs/system.img" ]; then
+			ln -s $(setup_loop /sfs/system.img) /dev/block/by-name/system
+		elif [ -e "/mnt/$SRC/system.img" ]; then
+			ln -s $(setup_loop /mnt/$SRC/system.img) /dev/block/by-name/system
+		else
+			echo "No loop mounting for system"
+		fi
+		ln -s $(setup_loop /mnt/$SRC/initrd.img) /dev/block/by-name/initrd
+		ln -s $(setup_loop /mnt/$SRC/kernel) /dev/block/by-name/kernel
+		ln -s $(setup_loop /mnt/$SRC/misc.img) /dev/block/by-name/misc
+		ln -s $(setup_loop /mnt/$SRC/recovery.img) /dev/block/by-name/recovery
 	fi
 }
 
@@ -364,13 +381,14 @@ done
 if ! grep 'sse4_2' /proc/cpuinfo 1>/dev/null; then {
   printf 'WARNING: Your CPU does not support SSE4.2 instructions, the OS will not boot\n';
 } fi
+
 cd /android
 
 ln -s mnt/$SRC /src
-ln -s android/system /
-ln -s ../system/lib/firmware ../system/lib/modules /lib
-mkdir -p /lib/modules
-ln -s ../system/lib/modules /lib/modules/`uname -r`
+ln -s /android/system/vendor/firmware /android/system/lib/modules /lib
+if [ -z "$RCVRY" ]; then
+	ln -s /android/system /
+fi
 
 if [ -d system/apex/com.android.runtime.debug ]; then
 	ln -s ../android/system/apex/com.android.runtime.debug /apex/com.android.runtime
@@ -380,8 +398,34 @@ elif [ -d system/apex/com.android.runtime ]; then
 	ln -s ../android/system/apex/com.android.runtime /apex/com.android.runtime
 fi
 
+if [ -z "$RCVRY" -o -z "$INSTALL" ]; then
 bliss_feature
 device_information
+fi
+
+if [ -n "$RCVRY" ]; then
+	# Assuming if ramdisk-recovery.img exist, this is booting Live from USB
+	if [ -e /src/ramdisk-recovery.img ]; then
+		echo "WARNING: Do not boot Recovery in the Live environment"
+		echo "System will now reboot"
+		sleep 10
+		return 1
+	elif [ -e /src/recovery.img ]; then
+		mkdir /recovery
+		mount -t tmpfs tmpfs /recovery
+		zcat /src/recovery.img | ( cd /recovery; cpio -iud > /dev/null )
+	else
+		echo "WARNING: No recovery.img found"
+		echo "System will now reboot"
+		sleep 10
+		return 1
+	fi
+
+	rm -rf /recovery/lib
+	mkdir -p /recovery/lib/modules
+	mkdir -p /recovery/lib/firmware
+	cd /android
+fi
 
 if [ -n "$INSTALL" ]; then
 	zcat /src/install.img | ( cd /; cpio -iud > /dev/null )
@@ -393,7 +437,7 @@ for s in `ls /scripts/* /src/scripts/*`; do
 done
 
 # ensure keyboard driver is loaded
-if [ -n "$INSTALL" -o -n "$DEBUG" ]; then
+if [ -n "$INSTALL" -o -n "$DEBUG" -a -z "$RCVRY" ]; then
 	echo "Detecting hardware..."
 	busybox modprobe -a hid-apple
 	if [ "$AUTO_LOAD" = "alpine" ]; then
@@ -401,6 +445,13 @@ if [ -n "$INSTALL" -o -n "$DEBUG" ]; then
 	else
 		auto_detect &
 	fi
+	sleep 2
+fi
+
+if [ -n "$RCVRY" -o -n "$RCVRY_PROBE" ]; then
+	echo "Detecting hardware for recovery..."
+	busybox modprobe -a hid-apple
+	auto_detect_recovery &
 	sleep 2
 fi
 
@@ -417,10 +468,25 @@ fi
 [ -n "$INSTALL" ] && do_install
 
 load_modules
-mount_data
-mount_sdcard
-mount_grub
-setup_ab_loops
+if [ -n "$RCVRY" ]; then
+	cd /recovery
+	mount_data
+	mount_sdcard
+	mount_grub
+
+	if [ -d /recovery/data/cache ]; then
+		ln -s /data/cache /recovery/cache
+	fi
+	setup_ab_loops
+
+	mount --bind /android/system/lib/modules /recovery/lib/modules
+	mount --bind /android/system/vendor/firmware /recovery/lib/firmware
+else
+	mount_data
+	mount_sdcard
+	mount_grub
+	setup_ab_loops
+fi
 setup_tslib
 setup_dpi
 post_detect
@@ -443,7 +509,11 @@ echo /system/bin/modprobe > /proc/sys/kernel/modprobe
 
 export ANDROID_ROOT=/system
 
-exec ${SWITCH:-switch_root} /android /init
+if [ -n "$RCVRY" ]; then
+	exec ${SWITCH:-switch_root} /recovery /init
+else
+	exec ${SWITCH:-switch_root} /android /init
+fi
 
 # avoid kernel panic
 while :; do
