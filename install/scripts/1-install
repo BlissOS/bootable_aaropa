@@ -842,7 +842,7 @@ install_process()
 \n\nThis is the final confirmation ! If you press 'No', setup will cancel this choice and start putting data next to system instead." 10 75
 		if [ $? -eq 0 ]; then
 			datapart_cancel=0
-			cmdline="$cmdline DATA=/dev/$userdata_partition"
+			cmdline="$cmdline DATA=$userdata_partition"
 		fi
 	fi
 
