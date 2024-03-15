@@ -337,6 +337,15 @@ setup_ab_loops()
 	fi
 }
 
+setup_data_loops()
+{
+	if [ -n "$RCVRY" ]; then
+		if [ -f /mnt/$SRC/data.img ]; then
+			ln -s $(setup_loop /mnt/$SRC/data.img) /dev/block/by-name/userdata
+		fi
+	fi
+}
+
 echo "Detecting Android-x86..."
 echo ""
 echo "If it took too long to detect, reboot and check your installation folder"
@@ -478,6 +487,7 @@ if [ -n "$RCVRY" ]; then
 		ln -s /data/cache /recovery/cache
 	fi
 	setup_ab_loops
+	setup_data_loops
 
 	mount --bind /android/system/lib/modules /recovery/lib/modules
 	mount --bind /android/system/vendor/firmware /recovery/lib/firmware

@@ -15,6 +15,10 @@ mount_data()
 		if [ -b "/dev/$blk" ]; then
 			[ ! -e /dev/block/$blk ] && ln /dev/$blk /dev/block
 			mount -o noatime /dev/block/$blk data
+			if [ -n "$RCVRY" ]; then
+				echo "sys.recovery.data_is_part=true" >> /recovery/prop.default
+				echo "sys.recovery.data_part=$DATA" >> /recovery/prop.default
+			fi
 		elif [ "$DATA" = "9p" ]; then
 			modprobe 9pnet_virtio
 			mount -t 9p -o trans=virtio data data -oversion=9p2000.L,posixacl,cache=loose
@@ -29,8 +33,15 @@ mount_data()
 		remount_rw
 		mount --bind /mnt/$SRC/data data
 	elif [ -f /mnt/$SRC/data.img ]; then
+		# Don't mount /data or else the data loop will be busy
+		if [ -z "$RCVRY" ]; then
 		remount_rw
 		mount -o loop,noatime /mnt/$SRC/data.img data
+		fi
+		if [ -n "$RCVRY" ]; then
+			echo "sys.recovery.data_is_part=true" >> /recovery/prop.default
+			echo "sys.recovery.data_is_img=true" >> /recovery/prop.default
+		fi
 	else
 		device_mount_data || mount -t tmpfs tmpfs data
 	fi
