@@ -973,10 +973,11 @@ if you already have a boot solution in place."
 			mv kernel kernel_a
 			mv initrd.img initrd_a.img
 			mv system.img system_a.img
-			mv ramdisk-recovery.img recovery.img
+			mv ramdisk-recovery.img recovery_a.img
 			gen_img 40 kernel_b
 			gen_img 40 initrd_b.img
-			gen_img 4096 system_b.img
+			gen_img 40 recovery_b.img
+			gen_img 4500 system_b.img
 			gen_img 10 misc.img
 			resize_img kernel_a kernel_b
 			resize_img initrd_a.img initrd_b.img
