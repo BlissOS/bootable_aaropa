@@ -308,8 +308,9 @@ setup_ab_loops()
 		setup_loop /mnt/$SRC/initrd_b.img /dev/block/by-name/initrd_b
 		setup_loop /mnt/$SRC/kernel_a /dev/block/by-name/kernel_a
 		setup_loop /mnt/$SRC/kernel_b /dev/block/by-name/kernel_b
+		setup_loop /mnt/$SRC/recovery_a.img /dev/block/by-name/recovery_a
+		setup_loop /mnt/$SRC/recovery_b.img /dev/block/by-name/recovery_b
 		setup_loop /mnt/$SRC/misc.img /dev/block/by-name/misc
-		setup_loop /mnt/$SRC/recovery.img /dev/block/by-name/recovery
 	else
 		if [ -e "/sfs/system.img" ]; then
 			setup_loop /sfs/system.img /dev/block/by-name/system
@@ -401,21 +402,27 @@ device_information
 fi
 
 if [ -n "$RCVRY" ]; then
-	# Assuming if ramdisk-recovery.img exist, this is booting Live from USB
-	if [ -e /src/ramdisk-recovery.img ]; then
-		echo "WARNING: Do not boot Recovery in the Live environment"
-		echo "System will now reboot"
-		sleep 10
-		return 1
-	elif [ -e /src/recovery.img ]; then
+	if [ ! -z "$SLOT" ]; then
 		mkdir /recovery
 		mount -t tmpfs tmpfs /recovery
-		zcat /src/recovery.img | ( cd /recovery; cpio -iud > /dev/null )
+		zcat /src/recovery$SLOT.img | ( cd /recovery; cpio -iud > /dev/null )
 	else
-		echo "WARNING: No recovery.img found"
-		echo "System will now reboot"
-		sleep 10
-		return 1
+		# Assuming if ramdisk-recovery.img exist, this is booting Live from USB
+		if [ -e /src/ramdisk-recovery.img ]; then
+			echo "WARNING: Do not boot Recovery in the Live environment"
+			echo "System will now reboot"
+			sleep 10
+			return 1
+		elif [ -e /src/recovery.img ]; then
+			mkdir /recovery
+			mount -t tmpfs tmpfs /recovery
+			zcat /src/recovery.img | ( cd /recovery; cpio -iud > /dev/null )
+		else
+			echo "WARNING: No recovery.img found"
+			echo "System will now reboot"
+			sleep 10
+			return 1
+		fi
 	fi
 
 	rm -rf /recovery/lib
