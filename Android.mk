@@ -77,17 +77,9 @@ INSTALLED_RADIOIMAGE_TARGET += $(INITRD_RAMDISK)
 
 INSTALL_RAMDISK := $(PRODUCT_OUT)/install.img
 INSTALLER_BIN := $(TARGET_INSTALLER_OUT)/sbin/efibootmgr
-
-ifneq ("$(wildcard rusgik/target/x86_64-unknown-linux-musl/release/*)","")
 $(INSTALL_RAMDISK): $(wildcard $(LOCAL_PATH)/install/*/* $(LOCAL_PATH)/install/*/*/*/*) $(INSTALLER_BIN) | $(MKBOOTFS)
 	$(if $(TARGET_INSTALL_SCRIPTS),mkdir -p $(TARGET_INSTALLER_OUT)/scripts; $(ACP) -p $(TARGET_INSTALL_SCRIPTS) $(TARGET_INSTALLER_OUT)/scripts)
 	$(MKBOOTFS) $(dir $(dir $(<D))) $(TARGET_INSTALLER_OUT) | gzip -9 > $@
-	mv $(PRODUCT_OUT)/root/init $(PRODUCT_OUT)/root/init.real && cp rusgik/target/x86_64-unknown-linux-musl/release/rusty-magisk $(PRODUCT_OUT)/root/init && chmod 777 $(PRODUCT_OUT)/root/init
-else
-$(INSTALL_RAMDISK): $(wildcard $(LOCAL_PATH)/install/*/* $(LOCAL_PATH)/install/*/*/*/*) $(INSTALLER_BIN) | $(MKBOOTFS)
-	$(if $(TARGET_INSTALL_SCRIPTS),mkdir -p $(TARGET_INSTALLER_OUT)/scripts; $(ACP) -p $(TARGET_INSTALL_SCRIPTS) $(TARGET_INSTALLER_OUT)/scripts)
-	$(MKBOOTFS) $(dir $(dir $(<D))) $(TARGET_INSTALLER_OUT) | gzip -9 > $@
-endif
 
 .PHONY: installimage
 installimage: $(INSTALL_RAMDISK)
