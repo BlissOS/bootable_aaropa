@@ -1,0 +1,207 @@
+#!/bin/bash
+#
+# Copyright (C) 2024 BlissLabs
+#
+# Licensed under the GNU General Public License Version 2 or later.
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.gnu.org/licenses/gpl.html
+#
+
+PATH="/sbin:/usr/sbin:/bin:/usr/bin"
+SYSTEM_FS="efs"
+LABEL="Android-x86"
+INSTALL_LOCATION=""
+NEWINSTALLER_LOCATION=""
+SCRIPT_LOCATION="$(dirname "$(readlink -f "$0")")"
+BOARD_KERNEL_CMDLINE=""
+VER="$(date "+%Y-%m-%d")"
+
+# Function to display help
+display_help() {
+  cat << EOF
+Copyright (C) 2024 BlissLabs
+
+iso_from_target_files script, original idea from LibreMobileOS, created by BlissLabs.
+Given a target-files zipfile, produces an iso image like a standard Android-x86 image.
+
+Usage: iso_from_target_files <options> <input_file_location> <output_file_location>
+
+Options:
+--cmdline|-c <string>             Set custom cmdline into grub2 & isolinux config
+--system-fs|-s <erofs|squashfs>   Set the system file system to erofs or squashfs (default is erofs)
+--label <string>                  Set the label to the provided string
+--install-location|-il <path>     Set the location of the install.img file
+--newinstaller-location|-nl <path> Set the location of the newinstaller directory
+--help|-h                         Display this help message
+EOF
+  exit 0
+}
+
+# Process options
+while (( "$#" )); do
+  case "$1" in
+    --cmdline|-c)
+      BOARD_KERNEL_CMDLINE="$2"
+      shift 2
+      ;;
+    --system-fs|-s)
+      if [ -n "$2" ] && [ "$2" == "erofs" ]; then
+        SYSTEM_FS="efs"
+      elif [ -n "$2" ] && [ "$2" == "squashfs" ]; then
+        SYSTEM_FS="sfs"
+      fi
+      shift 2
+      ;;
+    --label|-l)
+      if [ -n "$2" ]; then
+        LABEL="$2"
+      fi
+      shift 2
+      ;;
+    --install-location|-il)
+      if [ -n "$2" ]; then
+        INSTALL_LOCATION="$2"
+      fi
+      shift 2
+      ;;
+    --newinstaller-location|-nl)
+      if [ -n "$2" ]; then
+        NEWINSTALLER_LOCATION="$2"
+      fi
+      shift 2
+      ;;
+    --help|-h)
+      display_help
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+# Print usage if argument is not enough
+if [ $# -lt 2 ]; then
+  echo "Usage: iso_from_target_files <options> <input_file_location> <output_file_location>"
+  exit 1
+fi
+
+# Check for required command that are being used
+required_progs=("xorriso" "mkdosfs" "mcopy" "mmd" "mdel" "isohybrid" "mksquashfs" "mkfs.erofs")
+
+for cmd in "${required_progs[@]}"; do
+  if ! command -v $cmd >/dev/null 2>&1; then
+    echo "$cmd does not exist."
+    exit 1
+  fi
+done
+
+# Process input and output file locations
+INPUT_FILE_LOCATION=${@: -2:1}
+OUTPUT_FILE_LOCATION=${@: -1}
+
+# Guess install.img location if not specified
+if [ -z "$INSTALL_LOCATION" ]; then
+  echo "Try to guess where install image is"
+  ## out/target/product/*/install.img
+  ## or in this case: out/target/product/*/obj/PACKAGING/target_files_intermediates/*.zip/../../../../install.img
+  INSTALL_LOCATION="${INPUT_FILE_LOCATION}/../../../../install.img"
+  if [[ ! -f "$INSTALL_LOCATION" ]]; then
+      INSTALL_LOCATION="out/target/product/x86_64/install.img"
+      if [[ ! -f "$INSTALL_LOCATION" ]]; then
+        echo "Error: install.img still not found, abort !"
+        exit 1
+      fi
+  fi
+fi
+
+# Guess newinstaller location if not specified
+if [ -z "$NEWINSTALLER_LOCATION" ]; then
+  echo "Try to guess where newinstaller is"
+  ## bootable/newinstaller/bin/iso_from_target_files/../../../newinstaller
+  NEWINSTALLER_LOCATION="${SCRIPT_LOCATION}/../../../newinstaller"
+  if [[ ! -d "$NEWINSTALLER_LOCATION" ]]; then
+      NEWINSTALLER_LOCATION="bootable/newinstaller"
+      if [[ ! -d "$NEWINSTALLER_LOCATION" ]]; then
+        echo "Error: newinstaller still not found, abort !"
+        exit 1
+      fi
+  fi
+fi
+
+# Check if the input is target zip
+target_zip_content=("BOOT/kernel" "IMAGES/system.img" "RADIO/initrd.img")
+
+for content in "${target_zip_content[@]}"; do
+  unzip -l $INPUT_FILE_LOCATION | grep $content
+  if [ $? -ne 0 ]; then
+    echo "Error: target is not a target-files-package"
+    exit 1
+  fi
+done
+
+# Run the command
+
+## Create temp directory to extract stuff
+tmp_dir="$(pwd)/.tmp_iso_dir"
+rm -rf $tmp_dir    # Remove before start to work
+mkdir $tmp_dir
+
+## Unzip target files
+unzip $INPUT_FILE_LOCATION BOOT/kernel IMAGES/system.img RADIO/initrd.img -d $tmp_dir
+
+## Move required files to correct places
+mv $tmp_dir/BOOT/kernel $tmp_dir/kernel && rm -rf $tmp_dir/BOOT
+mv $tmp_dir/IMAGES/system.img $tmp_dir/system.img && rm -rf $tmp_dir/IMAGES
+mv $tmp_dir/RADIO/initrd.img $tmp_dir/initrd.img && rm -rf $tmp_dir/RADIO
+
+## Compress system.img if specificed
+if [ "$SYSTEM_FS" == "efs" ]; then
+  #Default to lz4hc
+  mkdir $tmp_dir/sys_efs && mv $tmp_dir/system.img $tmp_dir/sys_efs
+  mkfs.erofs -zlz4hc -C65536 $tmp_dir/system.efs $tmp_dir/sys_efs
+  rm -rf $tmp_dir/sys_efs
+elif [[ "$SYSTEM_FS" == "sfs" ]]; then
+  #Default to zstd
+  mksquashfs $tmp_dir/system.img $tmp_dir/system.sfs -noappend -comp zstd
+  rm $tmp_dir/system.img
+fi
+
+## Copy files from newinstaller
+cp -r $NEWINSTALLER_LOCATION/boot/. $tmp_dir
+cp -r $NEWINSTALLER_LOCATION/install/grub2/efi $tmp_dir
+
+## Copy install.img
+cp $INSTALL_LOCATION $tmp_dir
+
+## Create efi.img
+efi_img=$tmp_dir/boot/grub/efi.img
+dd if=/dev/zero of=$efi_img bs=3M count=5
+mkdosfs -n EFI $efi_img
+mmd -i $efi_img ::boot
+mcopy -si $efi_img $NEWINSTALLER_LOCATION/install/grub2/efi ::
+mdel -i $efi_img ::efi/boot/*.cfg
+
+## Editing some config files
+sed -i "s|\(Installation CD\)\(.*\)|\1 $VER|; s|CMDLINE|$BOARD_KERNEL_CMDLINE|" $tmp_dir/isolinux/isolinux.cfg
+sed -i "s|VER|$VER|; s|CMDLINE|$BOARD_KERNEL_CMDLINE|" $tmp_dir/efi/boot/android.cfg
+sed -i "s|OS_TITLE|$LABEL|" $tmp_dir/isolinux/isolinux.cfg $tmp_dir/efi/boot/android.cfg
+
+## Generate iso file
+xorriso -as mkisofs $tmp_dir -vJURT -b isolinux/isolinux.bin -c isolinux/boot.cat \
+   -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot \
+   -input-charset utf-8 -V "$LABEL" -o $OUTPUT_FILE_LOCATION
+
+isohybrid --uefi $OUTPUT_FILE_LOCATION
+
+# Check if the command was successful
+if [ $? -eq 0 ]; then
+  echo "Command was successful, file is in $OUTPUT_FILE_LOCATION ."
+else
+  echo "Command failed, please try again !"
+  exit 1
+fi
+
+# Remove the work dir regardless of success or failure
+rm -rf $tmp_dir

@@ -26,6 +26,18 @@ LOCAL_MODULE_CLASS := EXECUTABLES
 LOCAL_POST_INSTALL_CMD := $(hide) sed -i "s|CMDLINE|$(BOARD_KERNEL_CMDLINE)|" $(HOST_OUT_EXECUTABLES)/$(LOCAL_MODULE)
 include $(BUILD_PREBUILT)
 
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := iso_from_target_files
+LOCAL_SRC_FILES := bin/iso_from_target_files
+LOCAL_MODULE_CLASS := EXECUTABLES
+LOCAL_MODULE_PATH := $(HOST_OUT)/bin
+
+include $(BUILD_PREBUILT)
+
+.PHONY: iso_scripts
+iso_scripts: iso_from_target_files
+
 VER ?= $$(date "+%Y-%m-%d")
 
 # use squashfs or erofs for iso, unless explictly disabled
@@ -76,8 +88,7 @@ initrdimage: $(INITRD_RAMDISK)
 INSTALLED_RADIOIMAGE_TARGET += $(INITRD_RAMDISK)
 
 INSTALL_RAMDISK := $(PRODUCT_OUT)/install.img
-INSTALLER_BIN := $(TARGET_INSTALLER_OUT)/sbin/efibootmgr
-$(INSTALL_RAMDISK): $(wildcard $(LOCAL_PATH)/install/*/* $(LOCAL_PATH)/install/*/*/*/*) $(INSTALLER_BIN) | $(MKBOOTFS)
+$(INSTALL_RAMDISK): $(wildcard $(LOCAL_PATH)/install/*/* $(LOCAL_PATH)/install/*/*/*/*) | $(MKBOOTFS)
 	$(if $(TARGET_INSTALL_SCRIPTS),mkdir -p $(TARGET_INSTALLER_OUT)/scripts; $(ACP) -p $(TARGET_INSTALL_SCRIPTS) $(TARGET_INSTALLER_OUT)/scripts)
 	$(MKBOOTFS) $(dir $(dir $(<D))) $(TARGET_INSTALLER_OUT) | gzip -9 > $@
 
