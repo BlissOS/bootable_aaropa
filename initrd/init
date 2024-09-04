@@ -204,57 +204,69 @@ try_mount()
 	esac
 }
 
-check_root()
+check_sysroot()
 {
-	if [ "`dirname $1`" = "/dev" ]; then
-		[ -e $1 ] || return 1
-		blk=`basename $1`
-		[ ! -e /dev/block/$blk ] && ln $1 /dev/block
-		dev=/dev/block/$blk
-	else
-		dev=$1
-	fi
-	try_mount ro $dev /mnt || return 1
+	echo "Scanning $device..."
+	echo ""
 
-	# If $INSTALL is being set, assuming that we are in a removable device or
-	# in a iso or any type of device that copied all the content of an iso in
-	if [ -n "$INSTALL" ]; then
-		if [ ! -d "/mnt/isolinux" ] || [ ! -f "/mnt/install.img" ]; then
+	if ! try_mount ro $dev /mnt; then
+		mountpoint -q /mnt && umount /mnt
+		return 1
+	fi
+
+	find_system || return 1
+
+	ROOT=$dev
+	echo "Found at $dev"
+	echo ""
+
+}
+
+find_sysroot()
+{
+
+	echo "Detecting Android-x86..."
+	echo ""
+	echo "If it took too long to detect, reboot and check your installation folder"
+	echo ""
+
+	local iter=0
+	while [ $iter -lt $1 ]; do
+		for device in /dev/*; do
+			check_sysroot $device && return 0
+		done
+		sleep 5
+		iter=$((iter + 1))
+		echo -n .
+	done
+
+	echo "Detecting failed after $iter iterations!"
+	echo ""
+
+	return 1
+}
+
+find_system()
+{
+	if [ -e /mnt/$SRC/system.?fs ]; then
+		mkdir -p /rofs
+		mount -o loop,noatime /mnt/$SRC/system.?fs /rofs
+		if [ ! -e /rofs/system.img ]; then
+			umount /rofs
 			return 1
 		fi
-	fi
-
-	if [ -n "$iso" -a -e /mnt/$iso ]; then
-		mount --move /mnt /iso
-		mkdir /mnt/iso
-		mount -o loop /iso/$iso /mnt/iso
-	fi
-	if [ -e /mnt/$SRC/system.sfs ]; then
-		mount -o loop,noatime /mnt/$SRC/system.sfs android
-		if [ -e android/system.img ]; then
-			mount --move android /sfs
-			mount -o loop,noatime /sfs/system.img android
-		fi
-	elif [ -e /mnt/$SRC/system.efs ]; then
-		mount -o loop,noatime /mnt/$SRC/system.efs android
-		if [ -e android/system.img ]; then
-			mount --move android /sfs
-			mount -o loop,noatime /sfs/system.img android
-		fi
+			mount -o loop,noatime /rofs/system.img android
 	elif [ -e /mnt/$SRC/system$SLOT.img ]; then
 		remount_rw
 		mount -o loop,noatime /mnt/$SRC/system$SLOT.img android
 	elif [ -s /mnt/$SRC/system/system/build.prop ]; then
 		remount_rw
 		mount --bind /mnt/$SRC/system android
-	elif [ -z "$SRC" -a -s /mnt/system/build.prop ]; then
-		mount --bind /mnt android
+	elif [ -z "$SRC" -a -s /mnt/$SRC/system/build.prop ]; then
+		mount --bind /mnt/$SRC android
 	else
 		return 1
 	fi
-	echo " Found at $1"
-	hash -r
-	text_art
 }
 
 remount_rw()
@@ -363,18 +375,20 @@ for c in `cat /proc/cmdline`; do
 done
 
 cd /
-while :; do
-	for device in ${ROOT:-/dev/[hmnsvx][dmrv][0-9a-z]*}; do
-		check_root $device && break 2
+if [ -z "$ROOT" ]; then
+	find_sysroot 5 || debug_shell fatal-err
+else
+	try_mount ro $dev /mnt || debug_shell fatal-err
+fi
 
-		# Also umount /android and /sfs if already mounted
-		mountpoint -q /android && umount /android
-		mountpoint -q /sfs && umount /sfs
-		mountpoint -q /mnt && umount /mnt
-	done
-	sleep 1
-	echo -n .
-done
+if [ -n "$INSTALL" ]; then
+	if [ ! -d "/mnt/isolinux" ] || [ ! -f "/mnt/install.img" ]; then
+		debug_shell fatal-err
+	fi
+fi
+
+hash -r
+text_art
 
 if ! grep 'sse4_2' /proc/cpuinfo 1>/dev/null; then {
   printf 'WARNING: Your CPU does not support SSE4.2 instructions, the OS will not boot\n';
