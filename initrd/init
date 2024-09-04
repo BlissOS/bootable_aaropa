@@ -214,7 +214,11 @@ check_sysroot()
 		return 1
 	fi
 
-	find_system || return 1
+	if ! find_system; then
+		umount /mnt
+		mountpoint -q /iso && umount /iso
+		return 1
+	fi
 
 	ROOT=$dev
 	echo "Found at $dev"
@@ -248,6 +252,11 @@ find_sysroot()
 
 find_system()
 {
+	if [ -n "$iso" -a -e /mnt/$iso ]; then
+		mount --move /mnt /iso
+		mount -o loop /iso/$iso /mnt
+	fi
+
 	if [ -e /mnt/$SRC/system.?fs ]; then
 		mkdir -p /rofs
 		mount -o loop,noatime /mnt/$SRC/system.?fs /rofs
