@@ -11,7 +11,7 @@ mount_data()
 {
 	mountpoint -q data && return
 	if [ -n "$DATA" ]; then
-		blk=`basename $DATA`
+		blk=`basename $(find_device  "$DATA")`
 		if [ -b "/dev/$blk" ]; then
 			[ ! -e /dev/block/$blk ] && ln /dev/$blk /dev/block
 			mount -o noatime /dev/block/$blk data

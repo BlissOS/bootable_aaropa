@@ -182,7 +182,10 @@ error()
 try_mount()
 {
 	RW=$1; shift
-	[ ! -e /dev/block/$1 ] && ln /dev/$1 /dev/block
+
+	blk=`basename $1`
+	[ ! -e /dev/block/$blk ] && ln /dev/$blk /dev/block
+
 	if [ "${ROOT#*:/}" != "$ROOT" ]; then
 		# for NFS roots, use nolock to avoid dependency to portmapper
 		mount -o $RW,noatime,nolock $@
