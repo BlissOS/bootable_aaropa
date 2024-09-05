@@ -210,7 +210,8 @@ try_mount()
 
 check_sysroot()
 {
-	echo "Scanning $device..."
+	dev=$1
+	echo "Scanning $dev..."
 	echo ""
 
 	if ! try_mount ro $dev /mnt; then
@@ -240,8 +241,8 @@ find_sysroot()
 
 	local iter=0
 	while [ $iter -lt $1 ]; do
-		for device in /dev/*; do
-			check_sysroot $device && return 0
+		for dev in /dev/[hmnsvx][dmrv][0-9a-z]*; do
+			check_sysroot $dev && return 0
 		done
 		sleep 5
 		iter=$((iter + 1))
@@ -391,7 +392,7 @@ cd /
 if [ -z "$ROOT" ]; then
 	find_sysroot 5 || debug_shell fatal-err
 else
-	try_mount ro $dev /mnt || debug_shell fatal-err
+	check_sysroot $ROOT || debug_shell fatal-err
 fi
 
 if [ -n "$INSTALL" ]; then
