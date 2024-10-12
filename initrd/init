@@ -542,8 +542,6 @@ if [ 0$DEBUG -gt 1 ]; then
 	debug_shell debug-late
 fi
 
-[ -n "$DEBUG" ] && SWITCH=${SWITCH:-chroot}
-
 # We must disable mdev before switching to Android
 # since it conflicts with Android's init
 echo > /proc/sys/kernel/hotplug
@@ -552,6 +550,9 @@ echo > /proc/sys/kernel/hotplug
 echo /system/bin/modprobe > /proc/sys/kernel/modprobe
 
 export ANDROID_ROOT=/system
+
+# Copy /tmp/log to /android/data/bootlog.txt if DEBUG mode is set
+[ -n "$DEBUG" ] && cp /tmp/log /android/data/bootlog.txt
 
 if [ -n "$RCVRY" ]; then
 	exec ${SWITCH:-switch_root} /recovery /init
