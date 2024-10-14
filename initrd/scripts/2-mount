@@ -22,8 +22,6 @@ mount_data()
 		elif [ "$DATA" = "9p" ]; then
 			modprobe 9pnet_virtio
 			mount -t 9p -o trans=virtio data data -oversion=9p2000.L,posixacl,cache=loose
-		elif [ "$DATA" = "virtiofs" ]; then
-			mount -t virtiofs -o nosuid,nodev,noatime data data
 		else
 			remount_rw
 			mkdir -p /mnt/$SRC/$DATA
