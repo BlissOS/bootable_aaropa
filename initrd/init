@@ -78,38 +78,6 @@ EOF
 	fi
 }
 
-device_information()
-{
-	DMIPATH=/sys/class/dmi/id
-	BOARD=$(cat $DMIPATH/board_name)
-	PRODUCT=$(cat $DMIPATH/product_name)
-	PRODUCT_FAM=$(cat $DMIPATH/product_family)
-	PRODUCT_VER=$(cat $DMIPATH/product_version)
-	UEVENT=$(cat $DMIPATH/uevent)
-	VENDOR=$(cat $DMIPATH/sys_vendor)
-	SERIALNO=$(cat $DMIPATH/product_serial)
-
-	touch /tmp/device.prop
-
-	case "$VENDOR" in
-		*LENOVO*|*Lenovo*)
-		echo ro.product.bliss.device="$PRODUCT_FAM" >> /tmp/device.prop
-		echo ro.product.bliss.name="$PRODUCT_FAM" >> /tmp/device.prop
-		;;
-		*)
-		echo ro.product.bliss.device="$PRODUCT" >> /tmp/device.prop
-		echo ro.product.bliss.name="$PRODUCT" >> /tmp/device.prop
-		;;
-	esac
-
-	echo ro.product.bliss.brand="$VENDOR" >> /tmp/device.prop
-	echo ro.product.bliss.manufacturer="$(cat $DMIPATH/board_vendor)" >> /tmp/device.prop
-	echo ro.product.bliss.model="$BOARD" >> /tmp/device.prop
-	echo ro.product.board="$BOARD" >> /tmp/device.prop
-	echo ro.bliss.serialnumber="$SERIALNO" >> /tmp/device.prop
-	mount --bind /tmp/device.prop system/vendor/etc/device.prop
-}
-
 # auto installation
 if [ -n "$AUTO_INSTALL" ]; then
 	echo -n "This will replace all operating-systems on this device with a read-only version of this OS. Are you sure you want to continue (y/n)? "
@@ -426,7 +394,6 @@ fi
 
 if [ -z "$RCVRY" -o -z "$INSTALL" ]; then
 bliss_feature
-device_information
 fi
 
 if [ -n "$RCVRY" ]; then
