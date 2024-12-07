@@ -19,15 +19,6 @@ LOCAL_PATH := $(call my-dir)
 RELEASE_OS_TITLE := BlissOS-$(VERSION)
 
 include $(CLEAR_VARS)
-LOCAL_IS_HOST_MODULE := true
-LOCAL_SRC_FILES := rpm/qemu-android
-LOCAL_MODULE := $(notdir $(LOCAL_SRC_FILES))
-LOCAL_MODULE_CLASS := EXECUTABLES
-LOCAL_POST_INSTALL_CMD := $(hide) sed -i "s|CMDLINE|$(BOARD_KERNEL_CMDLINE)|" $(HOST_OUT_EXECUTABLES)/$(LOCAL_MODULE)
-include $(BUILD_PREBUILT)
-
-include $(CLEAR_VARS)
-
 LOCAL_MODULE := iso_from_target_files
 LOCAL_SRC_FILES := bin/iso_from_target_files
 LOCAL_MODULE_CLASS := EXECUTABLES
@@ -109,70 +100,13 @@ $(boot_dir): $(shell find $(LOCAL_PATH)/boot -type f | sort -r) $(systemimg) $(I
 BUILT_IMG := $(addprefix $(PRODUCT_OUT)/,initrd.img install.img ramdisk-recovery.img) $(systemimg)
 BUILT_IMG += $(if $(TARGET_PREBUILT_KERNEL),$(TARGET_PREBUILT_KERNEL),$(PRODUCT_OUT)/kernel)
 
-# Grab branch names
-KRNL := $(shell cd $(BUILD_TOP)/kernel ; make kernelversion)
-MSA := $(shell cd $(BUILD_TOP)/external/mesa ; git name-rev --name-only HEAD | cut -d '/' -f3)
-HWC := $(shell cd $(BUILD_TOP)/external/drm_hwcomposer ; git name-rev --name-only HEAD | cut -d '/' -f3)
-
-# Grab enabled extras
-ifeq ($(USE_GMS),true)
-	GMS := "_gms"
-else ifeq ($(USE_EMU_GAPPS),true)
-	GMS := "_emugapps"
-else ifeq ($(USE_FOSS_APPS),true)
-	GMS := "_foss"
-else
-	GMS := ""
-endif
-
-ifeq ($(USE_LIBNDK_TRANSLATION_NB),true)
-	HOU := "_libndk"
-else ifeq ($(USE_CROS_HOUDINI_NB),true)
-	HOU := "_cros-hd"
-else
-	HOU := ""
-endif
-
-ifeq ($(USE_WIDEVINE),true)
-WDV := "_cros-wv"
-else
-WDV := ""
-endif
-
-ifneq ("$(wildcard $(PRODUCT_OUT)/gearlock)","")
-GLK := "_gearlock"
-else
-GLK := ""
-endif
-
-ifeq ($(TARGET_ARCH),x86_64)
-IS_ANDROID_X86_64 := true
-else ifeq ($(TARGET_ARCH),x86)
-IS_ANDROID_X86_64 := false
-endif
-
-# Use vendor defined version names
-ifeq ($(TARGET_PRODUCT),virtualbox)
-KRNL := $(shell cd $(BUILD_TOP)/kernel ; make kernelversion)
-ROM_VENDOR_VERSION := $(RELEASE_OS_TITLE)-vbox-$(shell date +%Y%m%d%H%M)
-else ifeq ($(TARGET_PRODUCT),legacy_pc)
-KRNL := $(shell cd $(BUILD_TOP)/kernel ; make kernelversion)
-ROM_VENDOR_VERSION := $(RELEASE_OS_TITLE)-legacy_pc-$(shell date +%Y%m%d%H%M)
-else
-ROM_VENDOR_VERSION := $(RELEASE_OS_TITLE)-$(TARGET_ARCH)-$(shell date +%Y%m%d%H%M)
-endif
-
 BUILD_NAME_VARIANT := $(ROM_VENDOR_VERSION)
 
 ISO_IMAGE := $(PRODUCT_OUT)/$(BLISS_BUILD_ZIP).iso
 $(ISO_IMAGE): $(boot_dir) $(BUILT_IMG)
 	# Generate Changelog
-	bash bootable/newinstaller/tools/changelog
-	$(hide) mv Changelog.txt $(PRODUCT_OUT)/Changelog-$(BLISS_BUILD_ZIP).txt
 	@echo ----- Making iso image ------
-	$(hide) sed -i "s|\(Installation CD\)\(.*\)|\1 $(VER)|; s|CMDLINE|$(BOARD_KERNEL_CMDLINE)|" $</isolinux/isolinux.cfg
 	$(hide) sed -i "s|VER|$(VER)|; s|CMDLINE|$(BOARD_KERNEL_CMDLINE)|" $</efi/boot/android.cfg
-	sed -i "s|OS_TITLE|$(if $(RELEASE_OS_TITLE),$(RELEASE_OS_TITLE),Android-x86)|" $</isolinux/isolinux.cfg $</efi/boot/android.cfg
 	PATH="/sbin:/usr/sbin:/bin:/usr/bin"; \
 	which xorriso > /dev/null 2>&1 && GENISOIMG="xorriso -as mkisofs" || GENISOIMG=genisoimage; \
 	$$GENISOIMG -vJURT -b isolinux/isolinux.bin -c isolinux/boot.cat \
@@ -202,20 +136,7 @@ $(ISO_IMAGE): $(boot_dir) $(BUILT_IMG)
 	@echo -e ${CL_CYN}"==============================================="${CL_RST}
 	@echo -e ""
 
-rpm: $(wildcard $(LOCAL_PATH)/rpm/*) $(BUILT_IMG)
-	@echo ----- Making an rpm ------
-	OUT=$(abspath $(PRODUCT_OUT)); mkdir -p $$OUT/rpm/BUILD; rm -rf $$OUT/rpm/RPMS/*; $(ACP) $< $$OUT; \
-	echo $(VER) | grep -vq rc; EPOCH=$$((-$$? + `echo $(VER) | cut -d. -f1`)); \
-	PATH="/sbin:/usr/sbin:/bin:/usr/bin"; \
-	rpmbuild -bb --target=$(if $(filter x86,$(TARGET_ARCH)),i686,x86_64) -D"cmdline $(BOARD_KERNEL_CMDLINE)" \
-		-D"_topdir $$OUT/rpm" -D"_sourcedir $$OUT" -D"systemimg $(notdir $(systemimg))" -D"ver $(VER)" -D"epoch $$EPOCH" \
-		$(if $(BUILD_NAME_VARIANT),-D"name $(BUILD_NAME_VARIANT)") \
-		-D"install_prefix $(if $(INSTALL_PREFIX),$(INSTALL_PREFIX),android-$(VER))" $(filter %.spec,$^); \
-	mv $$OUT/rpm/RPMS/*/*.rpm $$OUT
-
-.PHONY: iso_img usb_img efi_img rpm
+.PHONY: iso_img
 iso_img: $(ISO_IMAGE)
-usb_img: $(ISO_IMAGE)
-efi_img: $(ISO_IMAGE)
 
 endif
