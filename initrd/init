@@ -9,13 +9,14 @@
 # We explicitely grant the right to use the scripts
 # with Android-x86 project.
 #
+# shellcheck disable=SC3036,SC2068
 
-PATH=/sbin:/bin:/system/bin:/system/xbin:/vendor/bin:/system_ext/bin:/system/vendor/bin:/system/system_ext/bin; export PATH
+PATH=/sbin:/bin:/system/bin:/system/xbin:/vendor/bin:/system_ext/bin:/system/vendor/bin:/system/system_ext/bin
+export PATH
 
 # ASCII art
-text_art()
-{
-cat << "EOF"
+text_art() {
+	cat <<"EOF"
       ___           ___                   ___           ___
      /\  \         /\__\      ___        /\  \         /\  \
     /::\  \       /:/  /     /\  \      /::\  \       /::\  \
@@ -34,10 +35,9 @@ cat << "EOF"
 EOF
 }
 
-bliss_feature()
-{
+bliss_feature() {
 	if [ "$INTERNAL_MOUNT" -gt "0" ]; then
-cat << "EOF"
+		cat <<"EOF"
 # WARNING: INTERNAL_MOUNT option is enabled, all the internal partitions
 # will now be recognized as USBs if the supported filesystem is available
 # and will create empty directories like Android, DCIM, Documents, etc.
@@ -45,12 +45,12 @@ cat << "EOF"
 ## DO NOT PRESS "TAP TO FIX", IT WILL FORMAT THE DRIVE!
 EOF
 
-	mount --bind system/vendor/etc/fstab.internal.x86 $(ls | grep fstab.)
+		mount --bind system/vendor/etc/fstab.internal.x86 /android/fstab.*
 	fi
 
 	# Enabling AOSP features for PC
 	if [ "$PC_MODE" -gt "0" ]; then
-cat << "EOF"
+		cat <<"EOF"
 # WARNING: PC_MODE will not work once Magisk or KernelSU modules are installed.
 # Visit BlissOS wiki for more info & solutions
 EOF
@@ -58,7 +58,7 @@ EOF
 	fi
 
 	if [ "$HPE" -gt "0" ]; then
-cat << "EOF"
+		cat <<"EOF"
 # WARNING: HPE will not work once Magisk or KernelSU modules are installed.
 # Visit BlissOS wiki for more info & solutions
 EOF
@@ -66,39 +66,57 @@ EOF
 	fi
 
 	# Hide bootctrl from VINTF manifest if we don't set up virtual A/B
-	if [ ! "$(cat /proc/cmdline | grep androidboot.slot_suffix)" ]; then
-cat << "EOF"
+	if ! grep androidboot.slot_suffix /proc/cmdline; then
+		cat <<"EOF"
 # WARNING: The system is not prepared with Virtual A/B, 
 # so OTA Update will not be supported
 EOF
-	echo '<?xml version="1.0" encoding="utf-8"?>' > /tmp/fakeboot.xml
-	echo '<manifest version="1.0" type="device">' >> /tmp/fakeboot.xml
-	echo '</manifest>' >> /tmp/fakeboot.xml
-	mount --bind /tmp/fakeboot.xml system/vendor/etc/vintf/manifest/android.hardware.boot@1.2.xml
+		cat <<'EOF' >/tmp/fakeboot.xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest version="1.0" type="device">
+</manifest>
+EOF
+		mount --bind /tmp/fakeboot.xml system/vendor/etc/vintf/manifest/android.hardware.boot@1.2.xml
 	fi
 }
 
-# auto installation
-if [ -n "$AUTO_INSTALL" ]; then
-	echo -n "This will replace all operating-systems on this device with a read-only version of this OS. Are you sure you want to continue (y/n)? "
-	read answer
-	if [ "$answer" != "${answer#[Yy]}" ] ;then
-		echo "Booting in Live Mode instead"
-	else
-		echo "Starting Installer"
-		INSTALL=1
-	fi
-fi
+device_information() {
+	DMIPATH=/sys/class/dmi/id
+	BOARD=$(cat $DMIPATH/board_name)
+	PRODUCT=$(cat $DMIPATH/product_name)
+	PRODUCT_FAM=$(cat $DMIPATH/product_family)
+	PRODUCT_VER=$(cat $DMIPATH/product_version)
+	UEVENT=$(cat $DMIPATH/uevent)
+	VENDOR=$(cat $DMIPATH/sys_vendor)
+	SERIALNO=$(cat $DMIPATH/product_serial)
+
+	case "$VENDOR" in
+	*LENOVO* | *Lenovo*) PRODUCT=$PRODUCT_FAM ;;
+	*) ;;
+	esac
+
+	cat <<EOF >>/tmp/device.prop
+ro.product.bliss.device=$PRODUCT
+ro.product.bliss.name=$PRODUCT
+ro.product.bliss.brand=$VENDOR
+ro.product.bliss.manufacturer=$(cat $DMIPATH/board_vendor)
+ro.product.bliss.model=$BOARD
+ro.product.board=$BOARD
+ro.bliss.serialnumber=$SERIALNO
+EOF
+
+	mount --bind /tmp/device.prop system/vendor/etc/device.prop
+}
 
 # configure debugging output
-if [ -n "$DEBUG" -o -n "$INSTALL" ]; then
+if [ "$DEBUG" ] || [ "$INSTALL" ]; then
 	LOG=/tmp/log
 	set -x
 else
 	LOG=/dev/null
 	test -e "$LOG" || busybox mknod $LOG c 1 3
 fi
-exec 2>> $LOG
+exec 2>>$LOG
 
 # early boot
 if test x"$HAS_CTTY" != x"Yes"; then
@@ -106,30 +124,25 @@ if test x"$HAS_CTTY" != x"Yes"; then
 	busybox mount -t proc proc /proc
 	busybox mount -t sysfs sys /sys
 	busybox mount -t tmpfs tmpfs /tmp
+
 	# let busybox install all applets as symlinks
-	# First let Docker busybox install applet
-	busybox.docker --install -s /bin
-	# Then we get Debian busybox applets in /tmp
-	# and move it back to /bin
-	mkdir /tmp/busybox_bin && busybox --install -s /tmp/busybox_bin && mv /tmp/busybox_bin/* /bin
-	# remove busybox fdisk & mke2fs
-	rm /bin/fdisk
-	rm /bin/mke2fs
-	# spawn shells on tty 2 and 3 if debug or installer
-	if test -n "$DEBUG" || test -n "$INSTALL"; then
+	busybox --install -s /bin/
+
+	# spawn shells on tty 2 and 3 if debug or install
+	if [ "$INSTALL" ] || [ "$DEBUG" ]; then
 		# ensure they can open a controlling tty
 		mknod /dev/tty c 5 0
 		# create device nodes then spawn on them
 		mknod /dev/tty2 c 4 2 && openvt
 		mknod /dev/tty3 c 4 3 && openvt
 	fi
-	if test -z "$DEBUG" || test -n "$INSTALL"; then
-		echo 0 0 0 0 > /proc/sys/kernel/printk
+	if [ "$INSTALL" ] || [ "$DEBUG" ]; then
+		echo 0 0 0 0 >/proc/sys/kernel/printk
 	fi
 	# initialise /dev (first time)
 	busybox mount -t devtmpfs devtmpfs /dev
 	mkdir -p /dev/block
-	echo /bin/mdev > /proc/sys/kernel/hotplug
+	echo /bin/mdev >/proc/sys/kernel/hotplug
 	mdev -s
 	# re-run this script with a controlling tty
 	exec env HAS_CTTY=Yes setsid cttyhack /bin/sh "$0" "$@"
@@ -141,304 +154,210 @@ fi
 # First, chmod /sbin because somehow the build process messed up the permission
 chmod 755 /sbin/*
 
-error()
-{
-	echo $*
-	return 1
+# check if specified device has pattern like UUID= or LABEL=
+find_device() {
+	case "$1" in
+	UUID=* | LABEL=*) busybox findfs "$1" ;;
+	*) echo "$1" ;;
+	esac
 }
 
-try_mount()
-{
-	RW=$1; shift
+try_mount() {
+	local RW=$1
+	shift
 
-	blk=`basename $1`
-	[ ! -e /dev/block/$blk ] && ln /dev/$blk /dev/block
+	[ -e "$(basename "$1")" ] || ln "$1" /dev/block
 
 	if [ "${ROOT#*:/}" != "$ROOT" ]; then
 		# for NFS roots, use nolock to avoid dependency to portmapper
 		mount -o $RW,noatime,nolock $@
 		return $?
 	fi
-	case $(blkid $1) in
-		*TYPE=*ntfs*)
-			if [ "$USE_NTFS3" -ge 1 ] || [ "$BOOT_USE_NTFS3" -ge 1 ]; then
-				mount -t ntfs3 -o rw,noatime,windows_names $@
-			else
-				mount.ntfs-3g -o rw,force $@
-			fi
-			;;
-		*TYPE=*)
-			mount -o $RW,noatime $@
-			;;
-		*)
-			return 1
-			;;
+
+	case $(blkid "$1") in
+	*TYPE=*ntfs*) if [ "$USE_NTFS3" -ge 1 ] || [ "$BOOT_USE_NTFS3" -ge 1 ]; then
+		mount -t ntfs3 -o rw,noatime,windows_names $@
+	else
+		mount.ntfs-3g -o rw,force $@
+	fi ;;
+	*TYPE=*) mount -o $RW,noatime $@ ;;
+	*) return 1 ;;
 	esac
 }
 
-check_sysroot()
-{
-	dev=$1
-	echo "Scanning $dev..."
-	echo ""
+check_sysroot() {
+	local dev=$1 file=$2
 
-	if ! try_mount ro $dev /mnt; then
-		mountpoint -q /mnt && umount /mnt
-		return 1
+	if try_mount ro "$dev" /mnt && [ -e /mnt/"$SRC"/$file ]; then
+		ROOT=$dev
+		return 0
 	fi
 
-	if ! find_system; then
+	while mountpoint -q /mnt; do
 		umount /mnt
-		mountpoint -q /iso && umount /iso
-		return 1
-	fi
-
-	ROOT=$dev
-	echo "Found at $dev"
-	echo ""
-
-}
-
-find_sysroot()
-{
-
-	echo "Detecting Android-x86..."
-	echo ""
-	echo "If it took too long to detect, reboot and check your installation folder"
-	echo ""
-
-	local iter=0
-	while [ $iter -lt $1 ]; do
-		for dev in /dev/[hmnsvx][dmrv][0-9a-z]*; do
-			check_sysroot $dev && return 0
-		done
-		sleep 5
-		iter=$((iter + 1))
-		echo -n .
 	done
-
-	echo "Detecting failed after $iter iterations!"
-	echo ""
 
 	return 1
 }
 
-find_system()
-{
-	if [ -n "$iso" -a -e /mnt/$iso ]; then
-		mount --move /mnt /iso
-		mount -o loop /iso/$iso /mnt
-	fi
+find_sysroot_by_file() {
+	local file=$1 iter=$2 dev
+	for _ in $(seq 0 $iter); do
+		for dev in /dev/[hmnsvx][dmrv][0-9a-z]*; do
+			test -e "$dev" || continue
+			echo -e "Scanning $dev...\n"
 
-	if [ -e /mnt/$SRC/system.?fs ]; then
-		mkdir -p /rofs
-		mount -o loop,noatime /mnt/$SRC/system.?fs /rofs
-		if [ ! -e /rofs/system.img ]; then
-			umount /rofs
-			return 1
-		fi
-			mount -o loop,noatime /rofs/system.img android
-	elif [ -e /mnt/$SRC/system$SLOT.img ]; then
-		remount_rw
-		mount -o loop,noatime /mnt/$SRC/system$SLOT.img android
-	elif [ -s /mnt/$SRC/system/system/build.prop ]; then
-		remount_rw
-		mount --bind /mnt/$SRC/system android
-	elif [ -z "$SRC" -a -s /mnt/$SRC/system/build.prop ]; then
-		mount --bind /mnt/$SRC android
-	else
-		return 1
-	fi
+			check_sysroot "$dev" "$file" || continue
+			echo -e "Found at $dev\n"
+			return 0
+		done
+		sleep 5
+		echo -n .
+	done
+
+	echo -e "Detecting failed after $iter iterations for file $file!\n"
+	return 1
 }
 
-remount_rw()
-{
-	# "foo" as mount source is given to workaround a Busybox bug with NFS
-	# - as it's ignored anyways it shouldn't harm for other filesystems.
-	mount -o remount,rw foo /mnt
+sysroot_search() {
+	cat <<EOF
+Detecting Android-x86...
+
+If it took too long to detect, reboot and check your installation folder
+
+EOF
+	local file
+	for file in $ROOT_SEARCH_FILES; do
+		find_sysroot_by_file "$file" 5 && return 0
+		sleep 5
+	done
+	return 1
 }
 
-debug_shell()
-{
-	if [ -x system/bin/sh ]; then
-		echo Running MirBSD Korn Shell...
-		USER="($1)" system/bin/sh -l 2>&1
-		[ $? -ne 0 ] && /bin/sh 2>&1
-	else
-		echo Running busybox ash...
-		busybox sh 2>&1
-	fi
-}
+# "foo" as mount source is given to workaround a Busybox bug with NFS
+# - as it's ignored anyways it shouldn't harm for other filesystems.
+remount_rw() { mount -o remount,rw foo /mnt; }
 
-setup_loop()
-{
+# Debug shell no longer takes arguments anymore
+debug_shell() { sh 2>&1; }
+
+setup_loop() {
+	local base target
 	for i in $(seq 0 9); do
-		if ! losetup /dev/loop$i >/dev/null 2>&1; then
-			if losetup /dev/loop$i $1 >/dev/null 2>&1; then
-				local dev="/dev/block/loop$i"
+		base=/dev/loop$i
 
-				ln -s "/dev/loop$i" "$dev"
-				mknod $2 b 7 $i
-				return 0
-			fi
-		fi
+		# If loop device is already set to other file
+		losetup "$base" >/dev/null 2>&1 &&
+			continue
+
+		# If loop device fails to setup
+		losetup "$base" "$1" >/dev/null 2>&1 ||
+			continue
+
+		target=/dev/block/loop$i
+
+		ln -s "$base" "$target"
+		echo "$target"
+
+		return 0
 	done
 }
 
-setup_ab_loops()
-{
-	if [ -n "$RCVRY" ]; then
-		mkdir -p /dev/block/by-name
-	fi
+setup_ab_loops() {
+	[ "$SLOT" ] || return
 
-	if [ ! -z "$SLOT" ]; then
-		if [ "$SLOT" = "_a" ]; then
-			setup_loop /mnt/$SRC/system_b.img /dev/block/by-name/system_b
-		else
-			setup_loop /mnt/$SRC/system_a.img /dev/block/by-name/system_a
-		fi
+	local leftover_slot
+	[ "$SLOT" = "_a" ] &&
+		leftover_slot=_b ||
+		leftover_slot=_a
 
-		setup_loop /mnt/$SRC/initrd_a.img /dev/block/by-name/initrd_a
-		setup_loop /mnt/$SRC/initrd_b.img /dev/block/by-name/initrd_b
-		setup_loop /mnt/$SRC/kernel_a /dev/block/by-name/kernel_a
-		setup_loop /mnt/$SRC/kernel_b /dev/block/by-name/kernel_b
-		setup_loop /mnt/$SRC/recovery_a.img /dev/block/by-name/recovery_a
-		setup_loop /mnt/$SRC/recovery_b.img /dev/block/by-name/recovery_b
-		setup_loop /mnt/$SRC/misc.img /dev/block/by-name/misc
-	else
-		if [ -e "/sfs/system.img" ]; then
-			setup_loop /sfs/system.img /dev/block/by-name/system
-		elif [ -e "/mnt/$SRC/system.img" ]; then
-			setup_loop /mnt/$SRC/system.img /dev/block/by-name/system
-		else
-			echo "No loop mounting for system"
-		fi
-		setup_loop /mnt/$SRC/initrd.img /dev/block/by-name/initrd
-		setup_loop /mnt/$SRC/kernel /dev/block/by-name/kernel
-		setup_loop /mnt/$SRC/misc.img /dev/block/by-name/misc
-		setup_loop /mnt/$SRC/recovery.img /dev/block/by-name/recovery
-	fi
+	ln_path=/dev/block/by-name
+
+	ln -s "$(setup_loop "/mnt/$SRC/system$leftover_slot.img")" $ln_path/system$leftover_slot
+	ln -s "$(setup_loop "/mnt/$SRC/initrd_a.img")" $ln_path/initrd_a
+	ln -s "$(setup_loop "/mnt/$SRC/initrd_b.img")" $ln_path/initrd_b
+	ln -s "$(setup_loop "/mnt/$SRC/kernel_a")" $ln_path/kernel_a
+	ln -s "$(setup_loop "/mnt/$SRC/kernel_b")" $ln_path/kernel_b
+	ln -s "$(setup_loop "/mnt/$SRC/misc.img")" $ln_path/misc
 }
 
-setup_data_loops()
-{
-	if [ -n "$RCVRY" ]; then
-		if [ -f /mnt/$SRC/data.img ]; then
-			setup_loop /mnt/$SRC/data.img /dev/block/by-name/userdata
-		fi
-	fi
-}
+[ -z "$SRC" ] && [ "$BOOT_IMAGE" ] &&
+	# Avoid GRUB partition prefix
+	SRC=$(dirname "${BOOT_IMAGE#/}")
 
-echo "Detecting Android-x86..."
-echo ""
-echo "If it took too long to detect, reboot and check your installation folder"
-echo ""
-
-[ -z "$SRC" -a -n "$BOOT_IMAGE" ] && SRC=`dirname $BOOT_IMAGE`
-
-for c in `cat /proc/cmdline`; do
-	case $c in
-		iso-scan/filename=*)
-			SRC=iso
-			eval `echo $c | cut -b1-3,18-`
-			;;
-		androidboot.slot_suffix=*)
-			eval SLOT=`echo $c | cut -f 2 -d "="`
-			;;
-		androidboot.efidisk=*)
-			eval EFIDISK=`echo $c | cut -f 2 -d "="`
-			;;
-		androidboot.efidir=*)
-			eval EFIDIR=`echo $c | cut -f 2 -d "="`
-			;;
-		*)
-			;;
+# shellcheck disable=SC2013
+for c in $(cat /proc/cmdline); do
+	case "$c" in
+	iso-scan/filename=*) ISO=${c##*=} ;;
+	androidboot.slot_suffix=*) SLOT=${c##*=} ;;
+	# We may no longer need EFIDISK and EFIDIR as we already have fstab
+	androidboot.efidisk=*) EFIDISK=$(find_device "${c##*=}") ;;
+	androidboot.efidir=*) EFIDIR=${c##*=} ;;
+	*) ;;
 	esac
 done
 
-cd /
-if [ -z "$ROOT" ]; then
-	find_sysroot 5 || debug_shell fatal-err
-else
-	check_sysroot $ROOT || debug_shell fatal-err
-fi
+ROOT=$(find_device "$ROOT")
 
-if [ -n "$INSTALL" ]; then
-	if [ ! -d "/mnt/isolinux" ] || [ ! -f "/mnt/install.img" ]; then
-		debug_shell fatal-err
+cd /
+# If there's no ROOT= specified, try to find one for 5 times
+if [ ! "$ROOT" ] || ! try_mount rw "$ROOT" /mnt; then
+	if [ "$ISO" ]; then
+		ROOT_SEARCH_FILES="$ISO"
+	else
+		ROOT_SEARCH_FILES="fstab.android ${BOOT_IMAGE#/} system$SLOT.?fs system$SLOT.img system$SLOT/system/build.prop system/build.prop"
+
+		# If is live/install mode, prior to search for $INSTALL image, default to install.sfs
+		if [ "$INSTALL" ] || grep -q 'androidboot.live=true' /proc/cmdline; then
+			ROOT_SEARCH_FILES="${INSTALL:-install.sfs} $ROOT_SEARCH_FILES"
+		fi
 	fi
+	sysroot_search
+fi || debug_shell fatal-err
+
+remount_rw
+
+[ "$ISO" ] && mount -o loop "/mnt/$SRC/$ISO" /mnt
+
+# If install is specified, but no install image found (probably wont happend)
+# Will be deprecated
+if [ "$INSTALL" ] && [ ! -f "/mnt/$SRC/$INSTALL" ]; then
+	debug_shell fatal-err
 fi
 
 hash -r
 text_art
 
-if ! grep 'sse4_2' /proc/cpuinfo 1>/dev/null; then {
-  printf 'WARNING: Your CPU does not support SSE4.2 instructions, the OS will not boot\n';
-} fi
-
-cd /android
-
-ln -s mnt/$SRC /src
-ln -s /android/system/vendor/firmware /android/system/lib/modules /lib
-if [ -z "$RCVRY" ]; then
-	ln -s /android/system /
-fi
-
-if [ -d system/apex/com.android.runtime.debug ]; then
-	ln -s ../android/system/apex/com.android.runtime.debug /apex/com.android.runtime
-elif [ -d system/apex/com.android.runtime.release ]; then
-	ln -s ../android/system/apex/com.android.runtime.release /apex/com.android.runtime
-elif [ -d system/apex/com.android.runtime ]; then
-	ln -s ../android/system/apex/com.android.runtime /apex/com.android.runtime
-fi
-
-if [ -z "$RCVRY" -o -z "$INSTALL" ]; then
-bliss_feature
-fi
-
-if [ -n "$RCVRY" ]; then
-	if [ ! -z "$SLOT" ]; then
-		mkdir /recovery
-		mount -t tmpfs tmpfs /recovery
-		zcat /src/recovery$SLOT.img | ( cd /recovery; cpio -iud > /dev/null )
-	else
-		# Assuming if ramdisk-recovery.img exist, this is booting Live from USB
-		if [ -e /src/ramdisk-recovery.img ]; then
-			echo "WARNING: Do not boot Recovery in the Live environment"
-			echo "System will now reboot"
-			sleep 10
-			return 1
-		elif [ -e /src/recovery.img ]; then
-			mkdir /recovery
-			mount -t tmpfs tmpfs /recovery
-			zcat /src/recovery.img | ( cd /recovery; cpio -iud > /dev/null )
-		else
-			echo "WARNING: No recovery.img found"
-			echo "System will now reboot"
-			sleep 10
-			return 1
-		fi
-	fi
-
-	rm -rf /recovery/lib
-	mkdir -p /recovery/lib/modules
-	mkdir -p /recovery/lib/firmware
-	cd /android
-fi
-
-if [ -n "$INSTALL" ]; then
-	zcat /src/install.img | ( cd /; cpio -iud > /dev/null )
+if ! grep 'sse4_2' /proc/cpuinfo 1>/dev/null; then
+	echo 'WARNING: Your CPU does not support SSE4.2 instructions, the OS will not boot'
 fi
 
 # load scripts
-for s in `ls /scripts/* /src/scripts/*`; do
-	test -e "$s" && source $s
+for s in /scripts/* /mnt/"$SRC"/scripts/*; do
+	# shellcheck disable=SC1090
+	test -e "$s" && source "$s"
 done
 
+check_fstab
+process_fstab
+
+# shellcheck disable=SC2164
+cd /android
+
+ln -s android/system /
+ln -s ../vendor/lib/firmware ../system/lib/modules /lib
+mkdir -p /lib/modules
+ln -s ../system/lib/modules /lib/modules/"$(uname -r)"
+
+bliss_feature
+device_information
+
+link_fstab
+
 # ensure keyboard driver is loaded
-if [ -n "$INSTALL" -o -n "$DEBUG" -a -z "$RCVRY" ]; then
+if [ "$INSTALL" ] || [ "$DEBUG" ]; then
 	echo "Detecting hardware..."
-	busybox modprobe -a hid-apple
+	modprobe -a hid-apple
 	if [ "$AUTO_LOAD" = "alpine" ]; then
 		auto_detect_alpine &
 	else
@@ -447,14 +366,7 @@ if [ -n "$INSTALL" -o -n "$DEBUG" -a -z "$RCVRY" ]; then
 	sleep 2
 fi
 
-if [ -n "$RCVRY" -o -n "$RCVRY_PROBE" ]; then
-	echo "Detecting hardware for recovery..."
-	busybox modprobe -a hid-apple
-	auto_detect_recovery &
-	sleep 2
-fi
-
-if [ 0$DEBUG -gt 0 ]; then
+if [ 0"$DEBUG" -gt 0 ]; then
 	echo -e "\nType 'exit' to continue booting...\n"
 	debug_shell debug-found
 fi
@@ -462,64 +374,45 @@ fi
 # A target should provide its detect_hardware function.
 # On success, return 0 with the following values set.
 # return 1 if it wants to use auto_detect
-[ "$AUTO" != "1" ] && detect_hardware && FOUND=1
+[ "$AUTO" != 1 ] && detect_hardware && FOUND=1
 
-[ -n "$INSTALL" ] && do_install
+[ "$INSTALL" ] && setup_install
 
-load_modules
-if [ -n "$RCVRY" ]; then
-	cd /recovery
-	mount_data
-	mount_sdcard
-	mount_grub
-
-	if [ -d /recovery/data/cache ]; then
-		ln -s /data/cache /recovery/cache
-	fi
-	setup_ab_loops
-	setup_data_loops
-
-	mount --bind /android/system/lib/modules /recovery/lib/modules
-	mount --bind /android/system/vendor/firmware /recovery/lib/firmware
-else
-	mount_data
-	mount_sdcard
-	mount_grub
-	setup_ab_loops
-fi
+# mount_data
+# mount_sdcard
+# mount_grub
+setup_ab_loops
 setup_tslib
 setup_dpi
 post_detect
 
-if [ 0$DEBUG -gt 1 ]; then
+if [ 0"$DEBUG" -gt 1 ]; then
 	echo -e "\nUse Alt-F1/F2/F3 to switch between virtual consoles"
 	echo -e "Type 'exit' to enter Android...\n"
 
 	debug_shell debug-late
 fi
 
+[ "$INSTALL" ] && start_install
+
 # We must disable mdev before switching to Android
 # since it conflicts with Android's init
-echo > /proc/sys/kernel/hotplug
+echo >/proc/sys/kernel/hotplug
 
 # Use correct modprobe location
-echo /system/bin/modprobe > /proc/sys/kernel/modprobe
+echo /system/bin/modprobe >/proc/sys/kernel/modprobe
 
 export ANDROID_ROOT=/system
 
-# Copy /tmp/log to /android/data/bootlog.txt if DEBUG mode is set
-[ -n "$DEBUG" ] && cp /tmp/log /android/data/bootlog.txt
-
-if [ -n "$RCVRY" ]; then
-	exec ${SWITCH:-switch_root} /recovery /init
-else
-	exec ${SWITCH:-switch_root} /android /init
-fi
+# shellcheck disable=SC2093
+exec ${SWITCH:-switch_root} /android /init
 
 # avoid kernel panic
 while :; do
-	echo
-	echo '	Android-x86 console shell. Use only in emergencies.'
-	echo
+	cat <<EOF
+
+	Android-x86 console shell. Use only in emergencies.'
+
+EOF
 	debug_shell fatal-err
 done
