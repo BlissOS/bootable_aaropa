@@ -20,16 +20,3 @@ setup_install() {
 	rm -f /system
 	ln -s /install/android/system /
 }
-
-start_install() {
-	# shellcheck disable=SC2093
-	exec ${SWITCH:-switch_root} /install "${init:-/sbin/init}"
-
-	# avoid kernel panic
-	while :; do
-		echo
-		echo '	Android-x86 console shell. Use only in emergencies.'
-		echo
-		debug_shell fatal-err
-	done
-}
