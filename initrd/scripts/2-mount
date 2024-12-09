@@ -9,7 +9,7 @@
 
 handle_fstab_line() {
 	local device target type flags
-	
+
 	device=$(find_device "$(eval echo "${1#"#>"}")")
 	case "$(grep -w "$device" /proc/filesystems)" in
 	nodev*) ;;
@@ -18,7 +18,13 @@ handle_fstab_line() {
 	else
 		device=/mnt/$SRC/$device
 		if [ -f "$device" ]; then
-			device=$(setup_loop "$device")
+			local _loop
+			_loop=$(setup_loop "$device")
+			device=/dev/block/loop$_loop
+
+			if [ "$2" = /data ]; then
+				mknod /dev/block/by-name/userdata b 7 "$_loop"
+			fi
 		elif [ -d "$device" ]; then
 			local mntpt=/android/$2
 			[ -d "$mntpt" ] || mkdir -p "$mntpt"
@@ -42,9 +48,10 @@ handle_fstab_line() {
 	case "$2" in
 	/)
 		mount "$device" /android ${type:+ -t $type} ${flags:+ -o $flags}
+
 		# Loop mount system.img
-		[ -f /android/system.img ] &&
-			mount /android/system.img /android
+		local _img=/android/system.img
+		[ -f $_img ] && mount $_img /android
 		;;
 	*) sed -i "s|#?$target|$device|g" /tmp/fstab ;;
 	esac
@@ -69,6 +76,13 @@ process_fstab() {
 }
 
 link_fstab() {
-	cat /android/fstab.* >>/tmp/fstab
-	mount --bind /tmp/fstab /android/fstab.*
+	local base
+	if [ "$RCVRY" ]; then
+		base=/recovery
+	else
+		base=/android
+	fi
+
+	cat $base/fstab.* >>/tmp/fstab
+	mount --bind /tmp/fstab $base/fstab.*
 }
