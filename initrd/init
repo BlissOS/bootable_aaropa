@@ -78,34 +78,19 @@ EOF
 EOF
 		mount --bind /tmp/fakeboot.xml system/vendor/etc/vintf/manifest/android.hardware.boot@1.2.xml
 	fi
-}
 
-device_information() {
-	DMIPATH=/sys/class/dmi/id
-	BOARD=$(cat $DMIPATH/board_name)
-	PRODUCT=$(cat $DMIPATH/product_name)
-	PRODUCT_FAM=$(cat $DMIPATH/product_family)
-	PRODUCT_VER=$(cat $DMIPATH/product_version)
-	UEVENT=$(cat $DMIPATH/uevent)
-	VENDOR=$(cat $DMIPATH/sys_vendor)
-	SERIALNO=$(cat $DMIPATH/product_serial)
-
-	case "$VENDOR" in
-	*LENOVO* | *Lenovo*) PRODUCT=$PRODUCT_FAM ;;
-	*) ;;
-	esac
-
-	cat <<EOF >>/tmp/device.prop
-ro.product.bliss.device=$PRODUCT
-ro.product.bliss.name=$PRODUCT
-ro.product.bliss.brand=$VENDOR
-ro.product.bliss.manufacturer=$(cat $DMIPATH/board_vendor)
-ro.product.bliss.model=$BOARD
-ro.product.board=$BOARD
-ro.bliss.serialnumber=$SERIALNO
+	# Hide BLE feature from the system
+	if [ "$BT_BLE_DISABLE" -ge "1" ]; then
+		cat <<EOF
+# NOTICE: BLE is set to be disabled
 EOF
-
-	mount --bind /tmp/device.prop system/vendor/etc/device.prop
+		cat <<EOF >/tmp/noble.xml
+<?xml version="1.0" encoding="utf-8"?>
+<permissions>
+</permissions>
+EOF
+		mount --bind /tmp/noble.xml system/vendor/etc/permissions/android.hardware.bluetooth_le.xml
+	fi
 }
 
 # configure debugging output
@@ -175,11 +160,14 @@ try_mount() {
 	fi
 
 	case $(blkid "$1") in
-	*TYPE=*ntfs*) if [ "$USE_NTFS3" -ge 1 ] || [ "$BOOT_USE_NTFS3" -ge 1 ]; then
-		mount -t ntfs3 -o rw,noatime,windows_names $@
-	else
-		mount.ntfs-3g -o rw,force $@
-	fi ;;
+	*TYPE=*ntfs*)
+		echo "WARNING: NTFS may not work well with BlissOS. Consider using another filesystem."
+		if [ "$USE_NTFS3" -ge 1 ] || [ "$BOOT_USE_NTFS3" -ge 1 ]; then
+			mount -t ntfs3 -o rw,noatime,windows_names $@
+		else
+			mount.ntfs-3g -o rw,force $@
+		fi
+		;;
 	*TYPE=*) mount -o $RW,noatime $@ ;;
 	*) return 1 ;;
 	esac
@@ -255,30 +243,42 @@ setup_loop() {
 			continue
 
 		target=/dev/block/loop$i
-
 		ln -s "$base" "$target"
-		echo "$target"
+
+		if [ "$2" ]; then
+			mknod "$2" b 7 "$i"
+		else
+			echo "$i"
+		fi
 
 		return 0
 	done
 }
 
 setup_ab_loops() {
-	[ "$SLOT" ] || return
-
-	local leftover_slot
-	[ "$SLOT" = "_a" ] &&
-		leftover_slot=_b ||
-		leftover_slot=_a
-
 	ln_path=/dev/block/by-name
+	mkdir -p $ln_path
 
-	ln -s "$(setup_loop "/mnt/$SRC/system$leftover_slot.img")" $ln_path/system$leftover_slot
-	ln -s "$(setup_loop "/mnt/$SRC/initrd_a.img")" $ln_path/initrd_a
-	ln -s "$(setup_loop "/mnt/$SRC/initrd_b.img")" $ln_path/initrd_b
-	ln -s "$(setup_loop "/mnt/$SRC/kernel_a")" $ln_path/kernel_a
-	ln -s "$(setup_loop "/mnt/$SRC/kernel_b")" $ln_path/kernel_b
-	ln -s "$(setup_loop "/mnt/$SRC/misc.img")" $ln_path/misc
+	if [ "$SLOT" ]; then
+		local _slot
+
+		for _slot in _a _b; do
+			[ "$SLOT" = "$_slot" ] ||
+				setup_loop "/mnt/$SRC/system$_slot.img" $ln_path/system$_slot
+		done
+
+		for _slot in _a _b; do
+			setup_loop "/mnt/$SRC/initrd$_slot.img" $ln_path/initrd$_slot
+			setup_loop "/mnt/$SRC/kernel$_slot" $ln_path/kernel$_slot
+			setup_loop "/mnt/$SRC/recovery$_slot.img" $ln_path/recovery$_slot
+		done
+	else
+		setup_loop "/mnt/$SRC/initrd.img" $ln_path/initrd
+		setup_loop "/mnt/$SRC/kernel" $ln_path/kernel
+		setup_loop "/mnt/$SRC/recovery.img" $ln_path/recovery
+	fi
+
+	setup_loop "/mnt/$SRC/misc.img" $ln_path/misc
 }
 
 [ -z "$SRC" ] && [ "$BOOT_IMAGE" ] &&
@@ -328,6 +328,32 @@ fi
 hash -r
 text_art
 
+if [ "$RCVRY" ]; then
+	if [ "$SLOT" ] || [ -e "/mnt/$SRC/recovery.img" ]; then
+		mkdir /recovery
+		mount -t tmpfs tmpfs /recovery
+		zcat "/mnt/$SRC/recovery$SLOT.img" | (
+			cd /recovery
+			cpio -iud >/dev/null
+		)
+	else
+		# Assuming if ramdisk-recovery.img exist, this is booting Live from USB
+		if [ -e "/mnt/$SRC/ramdisk-recovery.img" ]; then
+			echo "WARNING: Do not boot Recovery in the Live environment"
+		else
+			echo "WARNING: No recovery.img found"
+		fi
+		echo "System will now reboot"
+		sleep 10
+		return 1
+	fi
+
+	rm -rf /recovery/lib
+	mkdir -p /recovery/lib/modules
+	mkdir -p /recovery/lib/firmware
+	cd /android
+fi
+
 if ! grep 'sse4_2' /proc/cpuinfo 1>/dev/null; then
 	echo 'WARNING: Your CPU does not support SSE4.2 instructions, the OS will not boot'
 fi
@@ -349,22 +375,10 @@ ln -s ../vendor/lib/firmware ../system/lib/modules /lib
 mkdir -p /lib/modules
 ln -s ../system/lib/modules /lib/modules/"$(uname -r)"
 
-bliss_feature
-device_information
+# If neither RCVRY nor INSTALL is specified
+[ "$RCVRY" ] || [ "$INSTALL" ] || bliss_feature
 
 link_fstab
-
-# ensure keyboard driver is loaded
-if [ "$INSTALL" ] || [ "$DEBUG" ]; then
-	echo "Detecting hardware..."
-	modprobe -a hid-apple
-	if [ "$AUTO_LOAD" = "alpine" ]; then
-		auto_detect_alpine &
-	else
-		auto_detect &
-	fi
-	sleep 2
-fi
 
 if [ 0"$DEBUG" -gt 0 ]; then
 	echo -e "\nType 'exit' to continue booting...\n"
@@ -378,10 +392,15 @@ fi
 
 [ "$INSTALL" ] && setup_install
 
-# mount_data
-# mount_sdcard
-# mount_grub
 setup_ab_loops
+if [ "$RCVRY" ]; then
+	if [ -d /recovery/data/cache ]; then
+		ln -s /data/cache /recovery/cache
+	fi
+
+	mount --bind /android/system/lib/modules /recovery/lib/modules
+	mount --bind /android/vendor/firmware /recovery/lib/firmware
+fi
 setup_tslib
 setup_dpi
 post_detect
@@ -393,19 +412,28 @@ if [ 0"$DEBUG" -gt 1 ]; then
 	debug_shell debug-late
 fi
 
-[ "$INSTALL" ] && start_install
+if [ "$INSTALL" ]; then
+	exec ${SWITCH:-switch_root} /install /sbin/init
+else
+	# We must disable mdev before switching to Android
+	# since it conflicts with Android's init
+	echo >/proc/sys/kernel/hotplug
 
-# We must disable mdev before switching to Android
-# since it conflicts with Android's init
-echo >/proc/sys/kernel/hotplug
+	# Use correct modprobe location
+	echo /system/bin/modprobe >/proc/sys/kernel/modprobe
 
-# Use correct modprobe location
-echo /system/bin/modprobe >/proc/sys/kernel/modprobe
+	export ANDROID_ROOT=/system
 
-export ANDROID_ROOT=/system
+	# Copy /tmp/log to /android/data/bootlog.txt if DEBUG mode is set
+	[ -n "$DEBUG" ] && cp /tmp/log /android/data/bootlog.txt
 
-# shellcheck disable=SC2093
-exec ${SWITCH:-switch_root} /android /init
+	# shellcheck disable=SC2093
+	if [ -n "$RCVRY" ]; then
+		exec ${SWITCH:-switch_root} /recovery /init
+	else
+		exec ${SWITCH:-switch_root} /android /init
+	fi
+fi
 
 # avoid kernel panic
 while :; do
