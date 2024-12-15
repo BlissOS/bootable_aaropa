@@ -21,7 +21,7 @@ remove_existing_files() {
   for FILE in "${FILES[@]}"; do
     if [[ -f "$FILE" ]]; then
       echo "Removing existing file: $FILE"
-      rm -f "$FILE"
+      rm -f "$FILE"*
     fi
   done
 
