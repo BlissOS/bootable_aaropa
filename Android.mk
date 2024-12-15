@@ -1,4 +1,5 @@
 # Copyright 2009-2014, The Android-x86 Open Source Project
+# Copyright 2024, BlissLabs
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,9 +50,11 @@ endef
 endif
 
 initrd_dir := $(LOCAL_PATH)/initrd
-initrd_bin := \
-	$(initrd_dir)/init \
-	$(wildcard $(initrd_dir)/*/*)
+initrd_lib_dir := $(LOCAL_PATH)/initrd_lib
+
+ifneq ($(shell test -d $(initrd_lib_dir) && echo exists), exists)
+    $(error initrd_lib does not exist, have you run the download script yet ?)
+endif
 
 ifneq ($(USE_SQUASHFS),0)
 systemimg  := $(PRODUCT_OUT)/system.$(if $(MKSQUASHFS),sfs,img)
@@ -63,15 +66,15 @@ endif
 
 TARGET_INITRD_OUT := $(PRODUCT_OUT)/initrd
 INITRD_RAMDISK := $(TARGET_INITRD_OUT).img
-$(INITRD_RAMDISK): $(initrd_bin) $(systemimg) $(TARGET_INITRD_SCRIPTS) | $(ACP) $(MKBOOTFS)
+$(INITRD_RAMDISK): $(initrd_bin) $(systemimg) $(TARGET_INITRD_SCRIPTS) | $(ACP) $(HOST_OUT_EXECUTABLES)/toybox
 	$(hide) rm -rf $(TARGET_INITRD_OUT)
-	mkdir -p $(addprefix $(TARGET_INITRD_OUT)/,android apex efi hd iso lib mnt proc scripts sfs sys tmp)
+	mkdir -p $(addprefix $(TARGET_INITRD_OUT)/,android apex efi hd iso mnt proc scripts sfs sys tmp)
 	$(if $(TARGET_INITRD_SCRIPTS),$(ACP) -p $(TARGET_INITRD_SCRIPTS) $(TARGET_INITRD_OUT)/scripts)
-	ln -s /bin/ld-linux.so.2 $(TARGET_INITRD_OUT)/lib
 	echo "VER=$(VER)" > $(TARGET_INITRD_OUT)/scripts/00-ver
 	$(if $(RELEASE_OS_TITLE),echo "OS_TITLE=$(RELEASE_OS_TITLE)" >> $(TARGET_INITRD_OUT)/scripts/00-ver)
 	$(if $(INSTALL_PREFIX),echo "INSTALL_PREFIX=$(INSTALL_PREFIX)" >> $(TARGET_INITRD_OUT)/scripts/00-ver)
-	$(MKBOOTFS) $(<D) $(TARGET_INITRD_OUT) | gzip -9 > $@
+	$(ACP) -dpr $(initrd_dir)/* $(initrd_lib_dir)/* $(TARGET_INITRD_OUT)
+	cd $(TARGET_INITRD_OUT); find . | $(HOST_OUT_EXECUTABLES)/toybox cpio -o | gzip -9 > $@; cd -
 
 .PHONY: initrdimage
 initrdimage: $(INITRD_RAMDISK)
@@ -79,40 +82,34 @@ initrdimage: $(INITRD_RAMDISK)
 INSTALLED_RADIOIMAGE_TARGET += $(INITRD_RAMDISK)
 INSTALLED_RADIOIMAGE_TARGET += $(PRODUCT_OUT)/ramdisk-recovery.img
 
-INSTALL_RAMDISK := $(PRODUCT_OUT)/install.img
-$(INSTALL_RAMDISK): $(wildcard $(LOCAL_PATH)/install/*/* $(LOCAL_PATH)/install/*/*/*/*) | $(MKBOOTFS)
-	$(if $(TARGET_INSTALL_SCRIPTS),mkdir -p $(TARGET_INSTALLER_OUT)/scripts; $(ACP) -p $(TARGET_INSTALL_SCRIPTS) $(TARGET_INSTALLER_OUT)/scripts)
-	$(MKBOOTFS) $(dir $(dir $(<D))) $(TARGET_INSTALLER_OUT) | gzip -9 > $@
-
-.PHONY: installimage
-installimage: $(INSTALL_RAMDISK)
-
-boot_dir := $(PRODUCT_OUT)/boot
-$(boot_dir): $(shell find $(LOCAL_PATH)/boot -type f | sort -r) $(systemimg) $(INSTALL_RAMDISK) $(GENERIC_X86_CONFIG_MK) | $(ACP)
-	$(hide) rm -rf $@
-	$(ACP) -pr $(dir $(<D)) $@
-	$(ACP) -pr $(dir $(<D))../install/grub2/efi $@
-	PATH="/sbin:/usr/sbin:/bin:/usr/bin"; \
-	img=$@/boot/grub/efi.img; dd if=/dev/zero of=$$img bs=3M count=5; \
-	mkdosfs -n EFI $$img; mmd -i $$img ::boot; \
-	mcopy -si $$img $@/efi ::; mdel -i $$img ::efi/boot/*.cfg
-
-BUILT_IMG := $(addprefix $(PRODUCT_OUT)/,initrd.img install.img ramdisk-recovery.img) $(systemimg)
+BUILT_IMG := $(addprefix $(PRODUCT_OUT)/,initrd.img ramdisk-recovery.img) $(systemimg)
 BUILT_IMG += $(if $(TARGET_PREBUILT_KERNEL),$(TARGET_PREBUILT_KERNEL),$(PRODUCT_OUT)/kernel)
 
-BUILD_NAME_VARIANT := $(ROM_VENDOR_VERSION)
+ifneq ($(shell test -d $(LOCAL_PATH)/iso && echo exists), exists)
+    $(error iso does not exist, have you run the download script yet ?)
+endif
+
+MOD_DATE := $(shell date +"%Y%m%d%H%M%S"00)
+BOOT_HYBRID := $(LOCAL_PATH)/boot_hybrid.img
+iso_dir := $(PRODUCT_OUT)/iso
+$(iso_dir): $(shell find $(LOCAL_PATH)/iso -type f | sort -r) | $(ACP)
+	$(hide) rm -rf $@
+	$(ACP) -pr $(dir $<) $@
+	$(hide) sed -i "s|OS_TITLE|$(if $(RELEASE_OS_TITLE),$(RELEASE_OS_TITLE),Android-x86)|" $@/boot/grub/grub.cfg
+	$(hide) sed -i "s|CMDLINE|$(BOARD_KERNEL_CMDLINE)|" $@/boot/grub/grub.cfg
+	$(hide) sed -i "s|VER|$(VER)|" $@/boot/grub/grub.cfg
+	$(hide) echo "$(BOARD_KERNEL_CMDLINE)" > $@/cmdline.txt
 
 ISO_IMAGE := $(PRODUCT_OUT)/$(BLISS_BUILD_ZIP).iso
-$(ISO_IMAGE): $(boot_dir) $(BUILT_IMG)
-	# Generate Changelog
+$(ISO_IMAGE): $(iso_dir) $(BUILT_IMG)
 	@echo ----- Making iso image ------
-	$(hide) sed -i "s|VER|$(VER)|; s|CMDLINE|$(BOARD_KERNEL_CMDLINE)|" $</efi/boot/android.cfg
 	PATH="/sbin:/usr/sbin:/bin:/usr/bin"; \
-	which xorriso > /dev/null 2>&1 && GENISOIMG="xorriso -as mkisofs" || GENISOIMG=genisoimage; \
-	$$GENISOIMG -vJURT -b isolinux/isolinux.bin -c isolinux/boot.cat \
-		-no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot \
-		-input-charset utf-8 -V "$(if $(RELEASE_OS_TITLE),$(RELEASE_OS_TITLE),Android-x86) ($(TARGET_ARCH))" -o $@ $^
-	$(hide) PATH="/sbin:/usr/sbin:/bin:/usr/bin" isohybrid --uefi $@
+	xorriso -as mkisofs -graft-points --modification-date=$(MOD_DATE) -b /boot/grub/i386-pc/eltorito.img \
+		-no-emul-boot -boot-load-size 4 -boot-info-table --grub2-boot-info --grub2-mbr $(BOOT_HYBRID) \
+		-hfsplus -apm-block-size 2048 -hfsplus-file-creator-type chrp tbxj /System/Library/CoreServices/.disk_label \
+		-hfs-bless-by i /System/Library/CoreServices/boot.efi --efi-boot efi.img -efi-boot-part --efi-boot-image \
+		--protective-msdos-label -o $@ $^ --sort-weight 0 / --sort-weight 1 /boot \
+		-V "$(if $(RELEASE_OS_TITLE),$(RELEASE_OS_TITLE),Android-x86) ($(TARGET_ARCH))"
 	$(hide) $(SHA256) $(ISO_IMAGE) | sed "s|$(PRODUCT_OUT)/||" > $(ISO_IMAGE).sha256
 	@echo -e ${CL_CYN}""${CL_CYN}
 	@echo -e ${CL_CYN}"      ___           ___                   ___           ___      "${CL_CYN}
