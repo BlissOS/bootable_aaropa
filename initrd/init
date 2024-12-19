@@ -378,6 +378,13 @@ ln -s ../system/lib/modules /lib/modules/"$(uname -r)"
 # If neither RCVRY nor INSTALL is specified
 [ "$RCVRY" ] || [ "$INSTALL" ] || bliss_feature
 
+if [ "$RCVRY" ] || [ "$RCVRY_PROBE" ]; then
+	echo "Detecting hardware for recovery..."
+	busybox modprobe -a hid-apple
+	auto_detect_recovery &
+	sleep 2
+fi
+
 link_fstab
 
 if [ 0"$DEBUG" -gt 0 ]; then

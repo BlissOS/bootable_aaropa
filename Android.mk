@@ -68,7 +68,7 @@ TARGET_INITRD_OUT := $(PRODUCT_OUT)/initrd
 INITRD_RAMDISK := $(TARGET_INITRD_OUT).img
 $(INITRD_RAMDISK): $(initrd_bin) $(systemimg) $(TARGET_INITRD_SCRIPTS) | $(ACP) $(HOST_OUT_EXECUTABLES)/toybox
 	$(hide) rm -rf $(TARGET_INITRD_OUT)
-	mkdir -p $(addprefix $(TARGET_INITRD_OUT)/,android apex efi hd iso mnt proc scripts sfs sys tmp)
+	mkdir -p $(addprefix $(TARGET_INITRD_OUT)/,android apex mnt proc scripts sys tmp)
 	$(if $(TARGET_INITRD_SCRIPTS),$(ACP) -p $(TARGET_INITRD_SCRIPTS) $(TARGET_INITRD_OUT)/scripts)
 	echo "VER=$(VER)" > $(TARGET_INITRD_OUT)/scripts/00-ver
 	$(if $(RELEASE_OS_TITLE),echo "OS_TITLE=$(RELEASE_OS_TITLE)" >> $(TARGET_INITRD_OUT)/scripts/00-ver)
