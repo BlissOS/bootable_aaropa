@@ -13,11 +13,12 @@ check_fstab() {
 
   if [ -f "$fstab_file" ]; then
     cp "$fstab_file" $fstab_tmp
-  else
-    echo "Warning: No fstab found. Attempting to create one..."
-    /bin/build-fstab "/mnt/$SRC" >$fstab_tmp ||
-      debug_shell fatal-err
-
-    cp $fstab_tmp "$fstab_file" 2>/dev/null || :
+    return $?
   fi
+
+  echo "Warning: No fstab found. Attempting to create one..."
+  /bin/build-fstab "/mnt/$SRC" >$fstab_tmp ||
+    debug_shell fatal-err
+
+  cp $fstab_tmp "$fstab_file" 2>/dev/null || :
 }
