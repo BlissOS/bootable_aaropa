@@ -137,7 +137,7 @@ fi
 # boot up Android
 
 # First, chmod /sbin because somehow the build process messed up the permission
-chmod 755 /sbin/*
+chmod 755 /bin/* /sbin/*
 
 # check if specified device has pattern like UUID= or LABEL=
 find_device() {
@@ -176,21 +176,18 @@ try_mount() {
 check_sysroot() {
 	local dev=$1 file=$2
 
-	if try_mount ro "$dev" /mnt && [ -e /mnt/"$SRC"/$file ]; then
+	if try_mount ro "$dev" /mnt && [ -e "/mnt/$SRC/$file" ]; then
 		ROOT=$dev
 		return 0
 	fi
 
-	while mountpoint -q /mnt; do
-		umount /mnt
-	done
-
+	umount-r /mnt
 	return 1
 }
 
 find_sysroot_by_file() {
-	local file=$1 iter=$2 dev
-	for _ in $(seq 0 $iter); do
+	local file=$1 iter=$2 dev _
+	for _ in $(seq 0 "$iter"); do
 		for dev in /dev/[hmnsvx][dmrv][0-9a-z]*; do
 			test -e "$dev" || continue
 			echo -e "Scanning $dev...\n"
@@ -256,18 +253,15 @@ setup_loop() {
 }
 
 setup_ab_loops() {
-	ln_path=/dev/block/by-name
+	local ln_path=/dev/block/by-name
 	mkdir -p $ln_path
 
 	if [ "$SLOT" ]; then
 		local _slot
-
 		for _slot in _a _b; do
-			[ "$SLOT" = "$_slot" ] ||
+			if [ "$SLOT" != "$_slot" ]; then
 				setup_loop "/mnt/$SRC/system$_slot.img" $ln_path/system$_slot
-		done
-
-		for _slot in _a _b; do
+			fi
 			setup_loop "/mnt/$SRC/initrd$_slot.img" $ln_path/initrd$_slot
 			setup_loop "/mnt/$SRC/kernel$_slot" $ln_path/kernel$_slot
 			setup_loop "/mnt/$SRC/recovery$_slot.img" $ln_path/recovery$_slot
