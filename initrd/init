@@ -322,35 +322,14 @@ fi
 hash -r
 text_art
 
-if [ "$RCVRY" ]; then
-	if [ "$SLOT" ] || [ -e "/mnt/$SRC/recovery.img" ]; then
-		mkdir /recovery
-		mount -t tmpfs tmpfs /recovery
-		zcat "/mnt/$SRC/recovery$SLOT.img" | (
-			cd /recovery
-			cpio -iud >/dev/null
-		)
-	else
-		# Assuming if ramdisk-recovery.img exist, this is booting Live from USB
-		if [ -e "/mnt/$SRC/ramdisk-recovery.img" ]; then
-			echo "WARNING: Do not boot Recovery in the Live environment"
-		else
-			echo "WARNING: No recovery.img found"
-		fi
-		echo "System will now reboot"
-		sleep 10
-		return 1
-	fi
-
-	rm -rf /recovery/lib
-	mkdir -p /recovery/lib/modules
-	mkdir -p /recovery/lib/firmware
-	cd /android
-fi
-
 if ! grep 'sse4_2' /proc/cpuinfo 1>/dev/null; then
 	echo 'WARNING: Your CPU does not support SSE4.2 instructions, the OS will not boot'
 fi
+
+[ "$RCVRY" ] &&
+	BASE=/recovery ||
+	BASE=/android
+export BASE
 
 # load scripts
 for s in /scripts/* /mnt/"$SRC"/scripts/*; do
@@ -358,6 +337,7 @@ for s in /scripts/* /mnt/"$SRC"/scripts/*; do
 	test -e "$s" && source "$s"
 done
 
+setup_recovery || debug_shell fatal-err
 check_fstab
 process_fstab
 
@@ -394,14 +374,7 @@ fi
 [ "$INSTALL" ] && setup_install
 
 setup_ab_loops
-if [ "$RCVRY" ]; then
-	if [ -d /recovery/data/cache ]; then
-		ln -s /data/cache /recovery/cache
-	fi
-
-	mount --bind /android/system/lib/modules /recovery/lib/modules
-	mount --bind /android/vendor/firmware /recovery/lib/firmware
-fi
+mount_recovery
 setup_tslib
 setup_dpi
 post_detect
@@ -429,11 +402,7 @@ else
 	[ -n "$DEBUG" ] && cp /tmp/log /android/data/bootlog.txt
 
 	# shellcheck disable=SC2093
-	if [ -n "$RCVRY" ]; then
-		exec ${SWITCH:-switch_root} /recovery /init
-	else
-		exec ${SWITCH:-switch_root} /android /init
-	fi
+	exec ${SWITCH:-switch_root} $BASE /init
 fi
 
 # avoid kernel panic
