@@ -1,0 +1,45 @@
+# shellcheck shell=sh
+# By hmtheboy154 <buingoc67@gmail.com>
+#    Shadichy <shadichy.dev@gmail.com>
+# Last updated 2024/10/01
+#
+# License: GNU Public License
+# We explicitely grant the right to use the scripts
+# with Android-x86 project.
+#
+
+setup_recovery() {
+  [ "$RCVRY" ] || return 0
+
+  if [ ! "$SLOT" ] && [ ! -e "/mnt/$SRC/recovery.img" ]; then
+    # Assuming if ramdisk-recovery.img exist, this is booting Live from USB
+    if [ -e "/mnt/$SRC/ramdisk-recovery.img" ]; then
+      echo "WARNING: Do not boot Recovery in the Live environment"
+    else
+      echo "WARNING: No recovery.img found"
+    fi
+    return 1
+  fi
+
+  mkdir /recovery
+  mount -t tmpfs tmpfs /recovery
+  zcat "/mnt/$SRC/recovery$SLOT.img" | (
+    cd /recovery
+    cpio -iud >/dev/null
+  )
+
+  rm -rf /recovery/lib
+  mkdir -p /recovery/lib/modules
+  mkdir -p /recovery/lib/firmware
+}
+
+mount_recovery() {
+  [ "$RCVRY" ] || return 0
+
+  if [ -d /recovery/data/cache ]; then
+    ln -s /data/cache /recovery/cache
+  fi
+
+  mount --bind /android/system/lib/modules /recovery/lib/modules
+  mount --bind /android/vendor/firmware /recovery/lib/firmware
+}
