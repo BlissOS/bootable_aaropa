@@ -18,17 +18,18 @@ handle_fstab_line() {
 	else
 		device=/mnt/$SRC/$device
 		if [ -f "$device" ]; then
-			local _loop
-			_loop=$(setup_loop "$device")
-			device=/dev/block/loop$_loop
+			local loop_no
+			loop_no=$(setup_loop "$device")
+			device=/dev/block/loop$loop_no
 
 			if [ "$2" = /data ]; then
-				mknod /dev/block/by-name/userdata b 7 "$_loop"
+				mknod /dev/block/by-name/userdata b 7 "$loop_no"
 			fi
 		elif [ -d "$device" ]; then
-			local mntpt=/android/$2
+			local mntpt=$BASE/$2
 			[ -d "$mntpt" ] || mkdir -p "$mntpt"
 			mount "$device" "$mntpt" --bind
+
 			return $?
 		fi
 	fi ;;
@@ -76,13 +77,6 @@ process_fstab() {
 }
 
 link_fstab() {
-	local base
-	if [ "$RCVRY" ]; then
-		base=/recovery
-	else
-		base=/android
-	fi
-
-	cat $base/fstab.* >>/tmp/fstab
-	mount --bind /tmp/fstab $base/fstab.*
+	cat $BASE/fstab.* >>/tmp/fstab
+	mount --bind /tmp/fstab $BASE/fstab.*
 }
