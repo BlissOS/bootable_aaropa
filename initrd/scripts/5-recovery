@@ -27,10 +27,6 @@ setup_recovery() {
     cd /recovery
     cpio -iud >/dev/null
   )
-
-  rm -rf /recovery/lib
-  mkdir -p /recovery/lib/modules
-  mkdir -p /recovery/lib/firmware
 }
 
 mount_recovery() {
@@ -39,7 +35,4 @@ mount_recovery() {
   if [ -d /recovery/data/cache ]; then
     ln -s /data/cache /recovery/cache
   fi
-
-  mount --bind /android/system/lib/modules /recovery/lib/modules
-  mount --bind /android/vendor/firmware /recovery/lib/firmware
 }
