@@ -23,7 +23,7 @@ handle_fstab_line() {
 			device=/dev/block/loop$loop_no
 
 			if [ "$2" = /data ]; then
-				mknod /dev/block/by-name/userdata b 7 "$loop_no"
+				mknod /dev/block/by-name/userdata b 7 "$((loop_no * 16))"
 			fi
 		elif [ -d "$device" ]; then
 			local mntpt=$BASE/$2
