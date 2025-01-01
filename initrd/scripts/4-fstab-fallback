@@ -9,7 +9,7 @@
 
 check_fstab() {
   fstab_file=/mnt/$SRC/fstab.android
-  fstab_tmp=/tmp/fstab.tmp
+  fstab_tmp=/tmp/fstab.mirror
 
   if [ -f "$fstab_file" ]; then
     cp "$fstab_file" $fstab_tmp

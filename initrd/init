@@ -344,11 +344,6 @@ process_fstab
 # shellcheck disable=SC2164
 cd /android
 
-ln -s android/system /
-ln -s ../vendor/lib/firmware ../system/lib/modules /lib
-mkdir -p /lib/modules
-ln -s ../system/lib/modules /lib/modules/"$(uname -r)"
-
 # If neither RCVRY nor INSTALL is specified
 [ "$RCVRY" ] || [ "$INSTALL" ] || bliss_feature
 
@@ -366,10 +361,10 @@ if [ 0"$DEBUG" -gt 0 ]; then
 	debug_shell debug-found
 fi
 
-# A target should provide its detect_hardware function.
-# On success, return 0 with the following values set.
-# return 1 if it wants to use auto_detect
-[ "$AUTO" != 1 ] && detect_hardware && FOUND=1
+# # A target should provide its detect_hardware function.
+# # On success, return 0 with the following values set.
+# # return 1 if it wants to use auto_detect
+# [ "$AUTO" != 1 ] && detect_hardware && FOUND=1
 
 [ "$INSTALL" ] && setup_install
 
