@@ -30,17 +30,23 @@ _s=system\$SLOT
 
 if ls "$src"/system"$SLOT".?fs >/dev/null 2>&1; then
   _s=$_s.$(basename "$(find "$src"/system"$SLOT".?fs | head -1)" | cut -f 2 -d '.')
-elif [ -e "$src"/system"$SLOT".img ]; then
+elif [ -e "$src/system$SLOT.img" ]; then
   _s=$_s.img
-elif [ -s "$src"/system"$SLOT"/default.prop ]; then
+elif [ -s "$src/system$SLOT/default.prop" ]; then
   :
-elif [ -s "$src"/default.prop ]; then
-  _s=
+elif [ -s "$src/default.prop" ]; then
+  _s=/
 else
   exit 1
 fi
 
-echo -e "#>$_s  /"
+echo -e "\$FS/$_s  system\$SLOT"
+
+for _f in kernel\$SLOT initrd\$SLOT.img recovery\$SLOT.img misc.img; do
+  if [ -e "$src/${_f//'$SLOT'/"$SLOT"}" ]; then
+    echo -e "\$FS/$_f  ${_f%%.*}"
+  fi
+done
 
 _d=${DATA:=${2:-data.img}}
 [ "$_d" = "nodata" ] && exit 0
@@ -57,12 +63,12 @@ elif [ "$_d" = "virtiofs" ]; then
   _d_fs=virtiofs
   _d_flags=nosuid,nodev,noatime
 elif [ -f "$src/$_d" ]; then
-  _d="#>$_d  /data  \n#?/data"
+  _d=\$FS/$_d
   _d_flags=loop,noatime
 else
   [ -d "$src/$_d" ] || _d=data
   if [ -d "$src/$_d" ]; then
-    _d="#>$_d"
+    _d=\$FS/$_d
     _d_fs=
     _d_flags=
     _d_aflags=
@@ -72,9 +78,9 @@ else
   fi
 fi
 
-echo -e "$_d  /data  $_d_fs  $_d_flags  $_d_aflags"
+echo -e "$_d  userdata  $_d_fs  $_d_flags  $_d_aflags"
 
-_b=${3:-"#>boot"}
+_b=${3:-"\$FS/boot"}
 [ "$_b" = "noboot" ] && exit 0
 
-echo -e "$_b  /boot"
+echo -e "$_b  bootloader"

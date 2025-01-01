@@ -7,76 +7,103 @@
 # with Android-x86 project.
 #
 
+to_mntpt() {
+	case "$1" in
+	bootloader) echo boot ;;
+	esp) echo boot/efi ;;
+	userdata) echo data ;;
+	*) return 1 ;;
+	esac
+}
+
 handle_fstab_line() {
-	local device target type flags
+	local device=$1 target=$2 # type=$3 flags=$4 vold_flags=$5
 
-	device=$(find_device "$(eval echo "${1#"#>"}")")
-	case "$(grep -w "$device" /proc/filesystems)" in
-	nodev*) ;;
-	*) if [ -b "$device" ]; then
-		device=/dev/block/$(basename "$device")
+	# shellcheck disable=SC3060,SC2016
+	case "$1" in
+	*'$SLOT'*) if [ "$SLOT" ]; then
+		local s _ss
+		for s in _a _b; do
+			handle_fstab_line "${1//'$SLOT'/"$s"}" "${2//'$SLOT'/"$s"}" "$3" "$4" "$5"
+		done
 	else
-		device=/mnt/$SRC/$device
+		handle_fstab_line "${1//'$SLOT'/}" "${2//'$SLOT'/}" "$3" "$4" "$5"
+	fi && return $? ;;
+	'$FS'*)
+		device=${1//'$FS'/"/mnt/$SRC"}
 		if [ -f "$device" ]; then
-			local loop_no
-			loop_no=$(setup_loop "$device")
-			device=/dev/block/loop$loop_no
-
-			if [ "$2" = /data ]; then
-				mknod /dev/block/by-name/userdata b 7 "$((loop_no * 16))"
-			fi
+			handle_fstab_line "/dev/loop$(setup_loop "$device")" "$2" "$3" "$4" "$5"
 		elif [ -d "$device" ]; then
-			local mntpt=$BASE/$2
-			[ -d "$mntpt" ] || mkdir -p "$mntpt"
-			mount "$device" "$mntpt" --bind
-
-			return $?
+			mount --bind "$device" "$BASE/$(to_mntpt "$2")"
 		fi
-	fi ;;
+		return $?
+		;;
+	*) device=$(find_device "$1") ;;
 	esac
 
-	target=$2
-	type=$3
-	flags=$4
+	# Check if device is a block device
+	case "$device" in
+	/dev/*)
+		echo "#>$(basename "$device") $2 $3 $4 $5"
 
-	if [ "$type" ]; then
-		case "$type" in
+		if target=$(to_mntpt "$2"); then
+			echo "/dev/block/by-name/$2 /$target $3 $4 $5"
+		fi
+
+		case "$2" in
+		"system$SLOT")
+			mount ${3:+-t "$3"} ${4:+-o "$4"} "$device" /android
+
+			# Loop mount system.img
+			local _img=/android/system.img
+			[ -f $_img ] && mount $_img /android
+
+			# Link libraries
+			ln -s android/system android/vendor /
+			ln -s /vendor/lib/firmware /system/lib/modules /lib
+			mkdir -p /lib/modules
+			ln -s /system/lib/modules /lib/modules/"$(uname -r)"
+			;;
+		*) ;;
+		esac
+
+		return $?
+		;;
+	*) ;;
+	esac
+
+	# Check if device is a nodev-type filesystem
+	local is_nodev
+	if is_nodev=$(grep -w "$3" /proc/filesystems); then
+		# Modprobe for specific filesystems if needed
+		case "$3" in
 		9p) modprobe 9pnet_virtio ;;
 		*) ;;
 		esac
+
+		case "$is_nodev" in
+		nodev*) echo "#>$1 /$(to_mntpt "$2") $3 $4 $5" ;;
+		*) ;;
+		esac
+		return $?
 	fi
 
-	case "$2" in
-	/)
-		mount "$device" /android ${type:+ -t $type} ${flags:+ -o $flags}
-
-		# Loop mount system.img
-		local _img=/android/system.img
-		[ -f $_img ] && mount $_img /android
-		;;
-	*) sed -i "s|#?$target|$device|g" /tmp/fstab ;;
-	esac
-
+	return 1
 }
 
 process_fstab() {
-	cp /tmp/fstab.tmp /tmp/fstab
-
-	# shellcheck disable=SC2086
+	touch /tmp/fstab.real
+	local line
 	while read -r line; do
+		# shellcheck disable=SC2086
 		case "$line" in
-		"#>"*) handle_fstab_line $line ;;
-		*) ;;
+		'#'*) ;;
+		*) handle_fstab_line $line ;;
 		esac
-
-		# Load modules after mounting root
-		if grep -wq / "$line"; then
-			load_modules
-		fi
-	done </tmp/fstab.tmp
+	done </tmp/fstab.mirror >>/tmp/fstab.real
 }
 
 link_fstab() {
-	cat $BASE/fstab.* >>/tmp/fstab
-	mount --bind /tmp/fstab $BASE/fstab.*
+	cat $BASE/fstab.* >>/tmp/fstab.real
+	mount --bind /tmp/fstab.real $BASE/fstab.*
 }
