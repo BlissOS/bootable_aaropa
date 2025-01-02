@@ -52,7 +52,8 @@ handle_fstab_line() {
 
 		case "$2" in
 		"system$SLOT")
-			mount ${3:+-t "$3"} ${4:+-o "$4"} "$device" /android
+			# Keep system read-only unless rw is requested
+			mount ${3:+-t "$3"} ${4:+-o "$4"} -r "$device" /android
 
 			# Loop mount system.img
 			local _img=/android/system.img
