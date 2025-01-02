@@ -42,7 +42,12 @@ fi
 
 echo -e "\$FS/$_s  system\$SLOT"
 
-for _f in kernel\$SLOT initrd\$SLOT.img recovery\$SLOT.img misc.img; do
+for _f in \
+  kernel\$SLOT \
+  initrd\$SLOT.img \
+  recovery\$SLOT.img \
+  ramdisk-recovery.img \
+  misc.img; do
   if [ -e "$src/${_f//'$SLOT'/"$SLOT"}" ]; then
     echo -e "\$FS/$_f  ${_f%%.*}"
   fi
