@@ -44,7 +44,9 @@ handle_fstab_line() {
 	# Check if device is a block device
 	case "$device" in
 	/dev/*)
-		echo "#>$(basename "$device") $2 $3 $4 $5"
+		# Get major and minor of device
+		# shellcheck disable=SC2012
+		echo "#>$2 $(ls -ld "$device" | awk '{print $5$6}' | tr ',' ' ')"
 
 		if target=$(to_mntpt "$2"); then
 			echo "/dev/block/by-name/$2 /$target $3 $4 $5"
@@ -83,7 +85,7 @@ handle_fstab_line() {
 		esac
 
 		case "$is_nodev" in
-		nodev*) echo "#>$1 /$(to_mntpt "$2") $3 $4 $5" ;;
+		nodev*) echo "$1 /$(to_mntpt "$2") $3 $4 $5" ;;
 		*) ;;
 		esac
 		return $?
