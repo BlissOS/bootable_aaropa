@@ -75,20 +75,22 @@ handle_fstab_line() {
 	*) ;;
 	esac
 
-	# Check if device is a nodev-type filesystem
-	local is_nodev
-	if is_nodev=$(grep -w "$3" /proc/filesystems); then
-		# Modprobe for specific filesystems if needed
-		case "$3" in
-		9p) modprobe 9pnet_virtio ;;
-		*) ;;
-		esac
+	if [ "$3" ]; then
+		# Check if device is a nodev-type filesystem
+		local is_nodev
+		if is_nodev=$(grep -w "$3" /proc/filesystems); then
+			# Modprobe for specific filesystems if needed
+			case "$3" in
+			9p) modprobe 9pnet_virtio ;;
+			*) ;;
+			esac
 
-		case "$is_nodev" in
-		nodev*) echo "$1 /$(to_mntpt "$2") $3 $4 $5" ;;
-		*) ;;
-		esac
-		return $?
+			case "$is_nodev" in
+			nodev*) echo "$1 /$(to_mntpt "$2") $3 $4 $5" ;;
+			*) ;;
+			esac
+			return $?
+		fi
 	fi
 
 	return 1
