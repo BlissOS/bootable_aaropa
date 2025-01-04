@@ -226,9 +226,11 @@ remount_rw() { mount -o remount,rw foo /mnt; }
 # Debug shell no longer takes arguments anymore
 debug_shell() { sh 2>&1; }
 
+_LAST_LOOP=0
+
 setup_loop() {
 	local base target
-	for i in $(seq 0 9); do
+	for i in $(seq $_LAST_LOOP 9); do
 		base=/dev/loop$i
 
 		# If loop device is already set to other file
@@ -238,6 +240,9 @@ setup_loop() {
 		# If loop device fails to setup
 		losetup "$base" "$1" >/dev/null 2>&1 ||
 			continue
+
+		# Assign to global variable _LAST_LOOP
+		_LAST_LOOP=$i
 
 		target=/dev/block/loop$i
 		ln -s "$base" "$target"
