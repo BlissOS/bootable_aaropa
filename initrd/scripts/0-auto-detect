@@ -6,11 +6,14 @@
 # with Android-x86 project.
 #
 
-auto_detect_recovery()
-{
-	find /sys -name modalias -type f -print0 2> /dev/null | xargs -0 sort -u \
-		| xargs modprobe -b -a 2> /dev/null
+_detect_mod() {
+	find /sys -name modalias -type f -print0 |
+		xargs -0 sort -u |
+		xargs modprobe -b -a 2>/dev/null
+}
+
+auto_detect_recovery() {
+	_detect_mod
 	# we run it twice so we detect all devices
-	find /sys -name modalias -type f -print0 2> /dev/null | xargs -0 sort -u \
-		| xargs modprobe -b -a 2> /dev/null
+	_detect_mod
 }
