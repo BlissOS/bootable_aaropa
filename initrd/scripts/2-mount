@@ -63,7 +63,7 @@ handle_fstab_line() {
 
 			# Link libraries
 			ln -s android/system android/vendor /
-			ln -s /vendor/lib/firmware /system/lib/modules /lib
+			ln -s /vendor/firmware /system/lib/modules /lib
 			mkdir -p /lib/modules
 			ln -s /system/lib/modules /lib/modules/"$(uname -r)"
 			;;
