@@ -130,6 +130,7 @@ mkdir $tmp_dir
 unzip $INPUT_FILE_LOCATION BOOT/kernel IMAGES/system.img RADIO/initrd.img IMAGES/recovery.img -d $tmp_dir
 
 ## Move required files to correct places
+mv $tmp_dir/BOOT/cmdline $tmp_dir/cmdline.txt
 mv $tmp_dir/BOOT/kernel $tmp_dir/kernel
 mv $tmp_dir/IMAGES/recovery.img $tmp_dir/ramdisk-recovery.img
 mv $tmp_dir/IMAGES/system.img $tmp_dir/system.img
