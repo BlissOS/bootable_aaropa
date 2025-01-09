@@ -109,7 +109,7 @@ if [ -z "$AAROPA_LOCATION" ]; then
 fi
 
 # Check if the input is target zip
-target_zip_content=("BOOT/kernel" "IMAGES/system.img" "RADIO/initrd.img")
+target_zip_content=("BOOT/kernel" "IMAGES/system.img" "RADIO/initrd.img" "IMAGES/recovery.img")
 
 for content in "${target_zip_content[@]}"; do
   unzip -l $INPUT_FILE_LOCATION | grep $content
@@ -127,13 +127,14 @@ rm -rf $tmp_dir # Remove before start to work
 mkdir $tmp_dir
 
 ## Unzip target files
-unzip $INPUT_FILE_LOCATION BOOT/kernel IMAGES/system.img RADIO/initrd.img -d $tmp_dir
+unzip $INPUT_FILE_LOCATION BOOT/kernel IMAGES/system.img RADIO/initrd.img IMAGES/recovery.img -d $tmp_dir
 
 ## Move required files to correct places
-mv $tmp_dir/BOOT/kernel $tmp_dir/kernel && rm -rf $tmp_dir/BOOT
-mv $tmp_dir/IMAGES/system.img $tmp_dir/system.img && rm -rf $tmp_dir/IMAGES
-mv $tmp_dir/IMAGES/recovery.img $tmp_dir/recovery.img && rm -rf $tmp_dir/RECOVERY
-mv $tmp_dir/RADIO/initrd.img $tmp_dir/initrd.img && rm -rf $tmp_dir/RADIO
+mv $tmp_dir/BOOT/kernel $tmp_dir/kernel
+mv $tmp_dir/IMAGES/recovery.img $tmp_dir/ramdisk-recovery.img
+mv $tmp_dir/IMAGES/system.img $tmp_dir/system.img
+mv $tmp_dir/RADIO/initrd.img $tmp_dir/initrd.img
+rm -rf $tmp_dir/BOOT $tmp_dir/IMAGES $tmp_dir/RADIO
 
 ## Compress system.img if specificed
 if [ "$SYSTEM_FS" == "efs" ]; then
@@ -148,24 +149,22 @@ elif [[ "$SYSTEM_FS" == "sfs" ]]; then
 fi
 
 ## Copy files from aaropa
-cp -t $tmp_dir -r \
-  $AAROPA_LOCATION/boot \
-  $AAROPA_LOCATION/install.sfs
+cp -t $tmp_dir -r $AAROPA_LOCATION/iso/*
 
 ## Editing some config files
 # May consider to remove this
 sed -i "s|OS_TITLE|$LABEL-$ARCH|" $tmp_dir/boot/grub/grub.cfg
-sed -i "s|BlissOSLive|$LABEL-${VER//-/}|" $tmp_dir/boot/grub/grub.cfg
+sed -i "s|BlissOSLive|${LABEL}_${VER//-/}|" $tmp_dir/boot/grub/grub.cfg
 sed -i "s|CMDLINE|$BOARD_KERNEL_CMDLINE|" $tmp_dir/boot/grub/grub.cfg
 sed -i "s|VER|$VER|" $tmp_dir/boot/grub/grub.cfg
 
 ## Generate iso file
-xorriso -as mkisofs -graft-points --modification-date="$(date)" -b /boot/grub/i386-pc/eltorito.img \
+xorriso -as mkisofs -graft-points --modification-date="$(date +"%Y%m%d%H%M%S"00)" -b boot/grub/i386-pc/eltorito.img \
   -no-emul-boot -boot-load-size 4 -boot-info-table --grub2-boot-info --grub2-mbr "$AAROPA_LOCATION/boot_hybrid.img" \
   -hfsplus -apm-block-size 2048 -hfsplus-file-creator-type chrp tbxj /System/Library/CoreServices/.disk_label \
-  -hfs-bless-by i /System/Library/CoreServices/boot.efi --efi-boot "$AAROPA_LOCATION/efi.img" -efi-boot-part --efi-boot-image \
-  --protective-msdos-label -o $OUTPUT_FILE_LOCATION $tmp_dir --sort-weight 0 / --sort-weight 1 /boot \
-  -V "$LABEL-${VER//-/}"
+  -hfs-bless-by i /System/Library/CoreServices/boot.efi --efi-boot efi.img -efi-boot-part --efi-boot-image \
+  --protective-msdos-label -o "$OUTPUT_FILE_LOCATION" --sort-weight 0 / --sort-weight 1 /boot -V ${LABEL}_${VER//-/} \
+  $tmp_dir
 
 # Check if the command was successful
 if [ $? -eq 0 ]; then
