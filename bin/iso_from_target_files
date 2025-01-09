@@ -9,18 +9,18 @@
 #      http://www.gnu.org/licenses/gpl.html
 #
 
-PATH="/sbin:/usr/sbin:/bin:/usr/bin"
-SYSTEM_FS="efs"
-LABEL="Android-x86"
-INSTALL_LOCATION=""
-NEWINSTALLER_LOCATION=""
-SCRIPT_LOCATION="$(dirname "$(readlink -f "$0")")"
-BOARD_KERNEL_CMDLINE=""
-VER="$(date "+%Y-%m-%d")"
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+SYSTEM_FS=efs
+VER=$(date "+%Y-%m-%d")
+ARCH=$(uname -m)
+LABEL=BlissOS
+AAROPA_LOCATION=
+SCRIPT_LOCATION=$(dirname "$(readlink -f "$0")")
+BOARD_KERNEL_CMDLINE=
 
 # Function to display help
 display_help() {
-  cat << EOF
+  cat <<EOF
 Copyright (C) 2024 BlissLabs
 
 iso_from_target_files script, original idea from LibreMobileOS, created by BlissLabs.
@@ -32,52 +32,45 @@ Options:
 --cmdline|-c <string>             Set custom cmdline into grub2 & isolinux config
 --system-fs|-s <erofs|squashfs>   Set the system file system to erofs or squashfs (default is erofs)
 --label <string>                  Set the label to the provided string
---install-location|-il <path>     Set the location of the install.img file
---newinstaller-location|-nl <path> Set the location of the newinstaller directory
+--aaropa-location|-n <path>       Set the location of the aaropa directory
 --help|-h                         Display this help message
 EOF
   exit 0
 }
 
 # Process options
-while (( "$#" )); do
+while (("$#")); do
   case "$1" in
-    --cmdline|-c)
-      BOARD_KERNEL_CMDLINE="$2"
-      shift 2
-      ;;
-    --system-fs|-s)
-      if [ -n "$2" ] && [ "$2" == "erofs" ]; then
-        SYSTEM_FS="efs"
-      elif [ -n "$2" ] && [ "$2" == "squashfs" ]; then
-        SYSTEM_FS="sfs"
-      fi
-      shift 2
-      ;;
-    --label|-l)
-      if [ -n "$2" ]; then
-        LABEL="$2"
-      fi
-      shift 2
-      ;;
-    --install-location|-il)
-      if [ -n "$2" ]; then
-        INSTALL_LOCATION="$2"
-      fi
-      shift 2
-      ;;
-    --newinstaller-location|-nl)
-      if [ -n "$2" ]; then
-        NEWINSTALLER_LOCATION="$2"
-      fi
-      shift 2
-      ;;
-    --help|-h)
-      display_help
-      ;;
-    *)
-      break
-      ;;
+  --cmdline | -c)
+    BOARD_KERNEL_CMDLINE="$2"
+    shift 2
+    ;;
+  --system-fs | -s)
+    if [ -n "$2" ] && [ "$2" == "erofs" ]; then
+      SYSTEM_FS="efs"
+    elif [ -n "$2" ] && [ "$2" == "squashfs" ]; then
+      SYSTEM_FS="sfs"
+    fi
+    shift 2
+    ;;
+  --label | -l)
+    if [ -n "$2" ]; then
+      LABEL="$2"
+    fi
+    shift 2
+    ;;
+  --aaropa-location | -n)
+    if [ -n "$2" ]; then
+      AAROPA_LOCATION="$2"
+    fi
+    shift 2
+    ;;
+  --help | -h) 
+    display_help
+    ;;
+  *)
+    break
+    ;;
   esac
 done
 
@@ -101,32 +94,17 @@ done
 INPUT_FILE_LOCATION=${@: -2:1}
 OUTPUT_FILE_LOCATION=${@: -1}
 
-# Guess install.img location if not specified
-if [ -z "$INSTALL_LOCATION" ]; then
-  echo "Try to guess where install image is"
-  ## out/target/product/*/install.img
-  ## or in this case: out/target/product/*/obj/PACKAGING/target_files_intermediates/*.zip/../../../../install.img
-  INSTALL_LOCATION="${INPUT_FILE_LOCATION}/../../../../install.img"
-  if [[ ! -f "$INSTALL_LOCATION" ]]; then
-      INSTALL_LOCATION="out/target/product/x86_64/install.img"
-      if [[ ! -f "$INSTALL_LOCATION" ]]; then
-        echo "Error: install.img still not found, abort !"
-        exit 1
-      fi
-  fi
-fi
-
-# Guess newinstaller location if not specified
-if [ -z "$NEWINSTALLER_LOCATION" ]; then
-  echo "Try to guess where newinstaller is"
-  ## bootable/newinstaller/bin/iso_from_target_files/../../../newinstaller
-  NEWINSTALLER_LOCATION="${SCRIPT_LOCATION}/../../../newinstaller"
-  if [[ ! -d "$NEWINSTALLER_LOCATION" ]]; then
-      NEWINSTALLER_LOCATION="bootable/newinstaller"
-      if [[ ! -d "$NEWINSTALLER_LOCATION" ]]; then
-        echo "Error: newinstaller still not found, abort !"
-        exit 1
-      fi
+# Guess aaropa location if not specified
+if [ -z "$AAROPA_LOCATION" ]; then
+  echo "Try to guess where aaropa is"
+  ## bootable/aaropa/bin/iso_from_target_files/../../../aaropa
+  AAROPA_LOCATION="${SCRIPT_LOCATION}/../../../aaropa"
+  if [[ ! -d "$AAROPA_LOCATION" ]]; then
+    AAROPA_LOCATION="bootable/aaropa"
+    if [[ ! -d "$AAROPA_LOCATION" ]]; then
+      echo "Error: aaropa still not found, abort !"
+      exit 1
+    fi
   fi
 fi
 
@@ -145,7 +123,7 @@ done
 
 ## Create temp directory to extract stuff
 tmp_dir="$(pwd)/.tmp_iso_dir"
-rm -rf $tmp_dir    # Remove before start to work
+rm -rf $tmp_dir # Remove before start to work
 mkdir $tmp_dir
 
 ## Unzip target files
@@ -154,6 +132,7 @@ unzip $INPUT_FILE_LOCATION BOOT/kernel IMAGES/system.img RADIO/initrd.img -d $tm
 ## Move required files to correct places
 mv $tmp_dir/BOOT/kernel $tmp_dir/kernel && rm -rf $tmp_dir/BOOT
 mv $tmp_dir/IMAGES/system.img $tmp_dir/system.img && rm -rf $tmp_dir/IMAGES
+mv $tmp_dir/IMAGES/recovery.img $tmp_dir/recovery.img && rm -rf $tmp_dir/RECOVERY
 mv $tmp_dir/RADIO/initrd.img $tmp_dir/initrd.img && rm -rf $tmp_dir/RADIO
 
 ## Compress system.img if specificed
@@ -168,32 +147,25 @@ elif [[ "$SYSTEM_FS" == "sfs" ]]; then
   rm $tmp_dir/system.img
 fi
 
-## Copy files from newinstaller
-cp -r $NEWINSTALLER_LOCATION/boot/. $tmp_dir
-cp -r $NEWINSTALLER_LOCATION/install/grub2/efi $tmp_dir
-
-## Copy install.img
-cp $INSTALL_LOCATION $tmp_dir
-
-## Create efi.img
-efi_img=$tmp_dir/boot/grub/efi.img
-dd if=/dev/zero of=$efi_img bs=3M count=5
-mkdosfs -n EFI $efi_img
-mmd -i $efi_img ::boot
-mcopy -si $efi_img $NEWINSTALLER_LOCATION/install/grub2/efi ::
-mdel -i $efi_img ::efi/boot/*.cfg
+## Copy files from aaropa
+cp -t $tmp_dir -r \
+  $AAROPA_LOCATION/boot \
+  $AAROPA_LOCATION/install.sfs
 
 ## Editing some config files
-sed -i "s|\(Installation CD\)\(.*\)|\1 $VER|; s|CMDLINE|$BOARD_KERNEL_CMDLINE|" $tmp_dir/isolinux/isolinux.cfg
-sed -i "s|VER|$VER|; s|CMDLINE|$BOARD_KERNEL_CMDLINE|" $tmp_dir/efi/boot/android.cfg
-sed -i "s|OS_TITLE|$LABEL|" $tmp_dir/isolinux/isolinux.cfg $tmp_dir/efi/boot/android.cfg
+# May consider to remove this
+sed -i "s|OS_TITLE|$LABEL-$ARCH|" $tmp_dir/boot/grub/grub.cfg
+sed -i "s|BlissOSLive|$LABEL-${VER//-/}|" $tmp_dir/boot/grub/grub.cfg
+sed -i "s|CMDLINE|$BOARD_KERNEL_CMDLINE|" $tmp_dir/boot/grub/grub.cfg
+sed -i "s|VER|$VER|" $tmp_dir/boot/grub/grub.cfg
 
 ## Generate iso file
-xorriso -as mkisofs $tmp_dir -vJURT -b isolinux/isolinux.bin -c isolinux/boot.cat \
-   -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot \
-   -input-charset utf-8 -V "$LABEL" -o $OUTPUT_FILE_LOCATION
-
-isohybrid --uefi $OUTPUT_FILE_LOCATION
+xorriso -as mkisofs -graft-points --modification-date="$(date)" -b /boot/grub/i386-pc/eltorito.img \
+  -no-emul-boot -boot-load-size 4 -boot-info-table --grub2-boot-info --grub2-mbr "$AAROPA_LOCATION/boot_hybrid.img" \
+  -hfsplus -apm-block-size 2048 -hfsplus-file-creator-type chrp tbxj /System/Library/CoreServices/.disk_label \
+  -hfs-bless-by i /System/Library/CoreServices/boot.efi --efi-boot "$AAROPA_LOCATION/efi.img" -efi-boot-part --efi-boot-image \
+  --protective-msdos-label -o $OUTPUT_FILE_LOCATION $tmp_dir --sort-weight 0 / --sort-weight 1 /boot \
+  -V "$LABEL-${VER//-/}"
 
 # Check if the command was successful
 if [ $? -eq 0 ]; then
