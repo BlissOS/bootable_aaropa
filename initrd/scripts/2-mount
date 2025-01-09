@@ -12,6 +12,7 @@ to_mntpt() {
 	bootloader) echo boot ;;
 	esp) echo boot/efi ;;
 	userdata) echo data ;;
+	/*) echo "$1" ;;
 	*) return 1 ;;
 	esac
 }
