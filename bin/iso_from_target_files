@@ -65,7 +65,7 @@ while (("$#")); do
     fi
     shift 2
     ;;
-  --help | -h) 
+  --help | -h)
     display_help
     ;;
   *)
@@ -109,7 +109,13 @@ if [ -z "$AAROPA_LOCATION" ]; then
 fi
 
 # Check if the input is target zip
-target_zip_content=("BOOT/kernel" "IMAGES/system.img" "RADIO/initrd.img" "IMAGES/recovery.img")
+target_zip_content=(
+  "BOOT/cmdline"
+  "BOOT/kernel"
+  "IMAGES/recovery.img"
+  "IMAGES/system.img"
+  "RADIO/initrd.img"
+)
 
 for content in "${target_zip_content[@]}"; do
   unzip -l $INPUT_FILE_LOCATION | grep $content
@@ -127,7 +133,7 @@ rm -rf $tmp_dir # Remove before start to work
 mkdir $tmp_dir
 
 ## Unzip target files
-unzip $INPUT_FILE_LOCATION BOOT/kernel IMAGES/system.img RADIO/initrd.img IMAGES/recovery.img -d $tmp_dir
+unzip $INPUT_FILE_LOCATION "${target_zip_content[@]}" -d $tmp_dir
 
 ## Move required files to correct places
 mv $tmp_dir/BOOT/cmdline $tmp_dir/cmdline.txt
