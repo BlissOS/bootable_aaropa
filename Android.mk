@@ -90,12 +90,14 @@ ifneq ($(shell test -d $(LOCAL_PATH)/iso && echo exists), exists)
 endif
 
 MOD_DATE := $(shell date +"%Y%m%d%H%M%S"00)
+DISK_LABEL := $(if $(RELEASE_OS_TITLE),$(RELEASE_OS_TITLE),Android-x86)_$(shell date "+%Y%m%d")
 BOOT_HYBRID := $(LOCAL_PATH)/boot_hybrid.img
 iso_dir := $(PRODUCT_OUT)/iso
 $(iso_dir): $(shell find $(LOCAL_PATH)/iso -type f | sort -r) | $(ACP)
 	$(hide) rm -rf $@
 	$(ACP) -pr $(dir $<) $@
 	$(hide) sed -i "s|OS_TITLE|$(if $(RELEASE_OS_TITLE),$(RELEASE_OS_TITLE),Android-x86)|" $@/boot/grub/grub.cfg
+	$(hide) sed -i "s|BlissOSLive|$(DISK_LABEL)|" $@/boot/grub/grub.cfg
 	$(hide) sed -i "s|CMDLINE|$(BOARD_KERNEL_CMDLINE)|" $@/boot/grub/grub.cfg
 	$(hide) sed -i "s|VER|$(VER)|" $@/boot/grub/grub.cfg
 	$(hide) echo "$(BOARD_KERNEL_CMDLINE)" > $@/cmdline.txt
@@ -109,7 +111,7 @@ $(ISO_IMAGE): $(iso_dir) $(BUILT_IMG)
 		-hfsplus -apm-block-size 2048 -hfsplus-file-creator-type chrp tbxj /System/Library/CoreServices/.disk_label \
 		-hfs-bless-by i /System/Library/CoreServices/boot.efi --efi-boot efi.img -efi-boot-part --efi-boot-image \
 		--protective-msdos-label -o $@ $^ --sort-weight 0 / --sort-weight 1 /boot \
-		-V "$(if $(RELEASE_OS_TITLE),$(RELEASE_OS_TITLE),Android-x86) ($(TARGET_ARCH))"
+		-V "$(DISK_LABEL)"
 	$(hide) $(SHA256) $(ISO_IMAGE) | sed "s|$(PRODUCT_OUT)/||" > $(ISO_IMAGE).sha256
 	@echo -e ${CL_CYN}""${CL_CYN}
 	@echo -e ${CL_CYN}"      ___           ___                   ___           ___      "${CL_CYN}
