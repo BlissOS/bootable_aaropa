@@ -97,8 +97,8 @@ OUTPUT_FILE_LOCATION=${@: -1}
 # Guess aaropa location if not specified
 if [ -z "$AAROPA_LOCATION" ]; then
   echo "Try to guess where aaropa is"
-  ## bootable/aaropa/bin/iso_from_target_files/../../../aaropa
-  AAROPA_LOCATION="${SCRIPT_LOCATION}/../../../aaropa"
+  ## out/host/linux-x86/bin/../../../../bootable/aaropa
+  AAROPA_LOCATION="${SCRIPT_LOCATION}/../../../../bootable/aaropa"
   if [[ ! -d "$AAROPA_LOCATION" ]]; then
     AAROPA_LOCATION="bootable/aaropa"
     if [[ ! -d "$AAROPA_LOCATION" ]]; then
