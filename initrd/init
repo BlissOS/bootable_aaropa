@@ -292,6 +292,7 @@ for c in $(cat /proc/cmdline); do
 	# We may no longer need EFIDISK and EFIDIR as we already have fstab
 	androidboot.efidisk=*) EFIDISK=$(find_device "${c##*=}") ;;
 	androidboot.efidir=*) EFIDIR=${c##*=} ;;
+	androidboot.mode=recovery) RCVRY=1 ;;
 	*) ;;
 	esac
 done
