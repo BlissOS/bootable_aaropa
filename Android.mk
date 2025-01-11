@@ -17,7 +17,8 @@ BUILD_TOP := $(shell pwd)
 ifneq ($(filter x86%,$(TARGET_ARCH)),)
 LOCAL_PATH := $(call my-dir)
 
-RELEASE_OS_TITLE := BlissOS-$(VERSION)
+RELEASE_OS_TITLE := BlissOS
+VER := $(VERSION)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := iso_from_target_files
@@ -29,8 +30,6 @@ include $(BUILD_PREBUILT)
 
 .PHONY: iso_scripts
 iso_scripts: iso_from_target_files
-
-VER ?= $$(date "+%Y-%m-%d")
 
 # use squashfs or erofs for iso, unless explictly disabled
 ifneq ($(USE_SQUASHFS),0)
