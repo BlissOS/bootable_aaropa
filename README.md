@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Ānanda Āropa (/ɑːˈnʌndə/ /ɑː.ɾɐw.pɐ/) or `aaropa` is BlissLabs' latest attempt in improving the installer & initrd for BlissOS. With some of additional features & improvement compare to the old one based on Android-x86 including:
+Ānanda Āropa (/ɑːˈnʌndə/ /ɑː.ɾɐw.pɐ/) or `aaropa` is BlissLabs' latest attempt in improving the installer & initrd for BlissOS, with some of additional features & improvements compared to the original Android-x86 console installer:
 
 - Refactored Android-x86 init scripts.
 - All prebuilts are now being downloaded instead of stored in the repo.
@@ -24,7 +24,7 @@ With these programs, your installation media is not only for Live booting or ins
 
 ## Compatibility
 
-As of right now, `aaropa` only support `x86_64`.
+As of right now, `aaropa` only supports `x86_64`.
 
 ## Status
 
@@ -65,7 +65,7 @@ After that, just lunch and `make iso_img` like you usually do to build BlissOS.
 
 ## Meaning behind the name
 
-Ānanda & Āropa are two Sanskrit words used in Hinduism. <need more>
+Ānanda & Āropa combines the Sanskrit words "Ananda" (bliss) and "Aropa" (imposing or placing upon), creating a phrase that means "blissful installation" or "blissful startup."
 
 ## Credit
 
@@ -73,4 +73,4 @@ After that, just lunch and `make iso_img` like you usually do to build BlissOS.
 - [Devuan](https://www.devuan.org/) for a linux distro that doesn't use systemd.
 - All the programs that are listed above. Without these programs, we couldn't be able to achieve something like this.
 
-And [Shadichy](https://github.com/shadichy), the one who started it all !
+And [Shadichy](https://github.com/shadichy), the one who started it all!
