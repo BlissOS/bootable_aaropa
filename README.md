@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Ānanda Āropa (/ɑːˈnʌndə/ /ɑː.ɾɐw.pɐ/) or `aaropa` is BlissLabs' latest attempt in improving the installer & initrd for BlissOS. With some of additional features & improvement comparing to the old one based on Android-x86 including:
+Ānanda Āropa (/ɑːˈnʌndə/ /ɑː.ɾɐw.pɐ/) or `aaropa` is BlissLabs' latest attempt in improving the installer & initrd for BlissOS. With some of additional features & improvement compare to the old one based on Android-x86 including:
 
 - Refactored Android-x86 init scripts.
 - All prebuilts are now being downloaded instead of stored in the repo.
@@ -34,7 +34,7 @@ Beside this main repo, `aaropa` is also made of several other repos including:
 This repo contains patches & modules for Calamares which will be built into .deb file
 
 - ![https://github.com/BlissOS/grub2-themes](https://github.com/BlissOS/grub2-themes/actions/workflows/build-devuan-ceres.yml/badge.svg) <p>
-This rpeo contains the Grub2 theme that we're using which will be built into .deb file
+This repo contains the Grub2 theme that we're using which will be built into .deb file
 
 - [![](https://github.com/BlissOS/aaropa_busybox/actions/workflows/build-linux.yml/badge.svg)](https://github.com/BlissOS/aaropa_busybox) <p>
 This repo contains `busybox` program that is on initrd, it will also be built into .deb file
