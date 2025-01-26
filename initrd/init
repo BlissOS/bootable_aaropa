@@ -176,7 +176,7 @@ try_mount() {
 check_sysroot() {
 	local dev=$1 file=$2
 
-	if try_mount ro "$dev" /mnt && [ -e "/mnt/$SRC/$file" ]; then
+	if try_mount ro "$dev" /mnt && [ -e /mnt/"$SRC"/$file ]; then
 		ROOT=$dev
 		return 0
 	fi
@@ -295,6 +295,13 @@ for c in $(cat /proc/cmdline); do
 	androidboot.mode=recovery) RCVRY=1 ;;
 	*) ;;
 	esac
+done
+
+# Most of the times they mislead devices in /dev with /dev/block, as
+# /dev/block is used in Android (booted). So this is a workaround to
+# find the correct device.
+for _d in /dev/[hmnsvx][dmrv][0-9a-z]*; do
+	ln -s "$_d" /dev/block/
 done
 
 ROOT=$(find_device "$ROOT")
