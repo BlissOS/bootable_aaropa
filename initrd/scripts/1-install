@@ -8,15 +8,25 @@
 #
 
 setup_install() {
+	# Setup overlay on /install
 	mkdir -p /install /tmp/i_workdir /tmp/i_upperdir
 	mount -o loop "/mnt/$SRC/$INSTALL" /install
 	mount -t overlay \
 		-o lowerdir=/install,upperdir=/tmp/i_upperdir,workdir=/tmp/i_workdir \
 		overlay /install
 
+	# Move mountpoints
 	mount --move /android /install/android
 	mount --move /mnt /install/cdrom
 
+	# Additional setup to bind system.img to /source
+	if mountpoint -q /android; then
+		mount --move /android /install/source
+	else
+		mount --bind /install/cdrom /install/source
+	fi
+
+	# Post setup
 	rm -f /system
 	ln -s /install/android/system /
 }
