@@ -151,8 +151,6 @@ try_mount() {
 	local RW=$1
 	shift
 
-	[ -e "$(basename "$1")" ] || ln "$1" /dev/block
-
 	if [ "${ROOT#*:/}" != "$ROOT" ]; then
 		# for NFS roots, use nolock to avoid dependency to portmapper
 		mount -o $RW,noatime,nolock $@
@@ -360,12 +358,7 @@ cd /android
 # If neither RCVRY nor INSTALL is specified
 [ "$RCVRY" ] || [ "$INSTALL" ] || bliss_feature
 
-if [ "$RCVRY" ] || [ "$RCVRY_PROBE" ]; then
-	echo "Detecting hardware for recovery..."
-	busybox modprobe -a hid-apple
-	auto_detect_recovery &
-	sleep 2
-fi
+probe_recovery
 
 link_fstab
 
@@ -386,6 +379,7 @@ mount_recovery
 setup_tslib
 setup_dpi
 post_detect
+post_setup_recovery
 
 if [ 0"$DEBUG" -gt 1 ]; then
 	echo -e "\nUse Alt-F1/F2/F3 to switch between virtual consoles"
