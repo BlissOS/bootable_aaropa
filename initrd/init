@@ -45,7 +45,7 @@ bliss_feature() {
 ## DO NOT PRESS "TAP TO FIX", IT WILL FORMAT THE DRIVE!
 EOF
 
-		mount --bind system/vendor/etc/fstab.internal.x86 /android/fstab.*
+		mount --bind /system/vendor/etc/fstab.internal.x86 /android/fstab.*
 	fi
 
 	# Enabling AOSP features for PC
@@ -54,7 +54,7 @@ EOF
 # WARNING: PC_MODE will not work once Magisk or KernelSU modules are installed.
 # Visit BlissOS wiki for more info & solutions
 EOF
-		mount --bind system/etc/hidden_xml/pc.xml system/etc/permissions/pc.xml
+		mount --bind /system/etc/hidden_xml/pc.xml /system/etc/permissions/pc.xml
 	fi
 
 	if [ "$HPE" -gt "0" ]; then
@@ -62,7 +62,7 @@ EOF
 # WARNING: HPE will not work once Magisk or KernelSU modules are installed.
 # Visit BlissOS wiki for more info & solutions
 EOF
-		mount --bind system/etc/hidden_xml/hpe.xml system/etc/sysconfig/hpe.xml
+		mount --bind /system/etc/hidden_xml/hpe.xml /system/etc/sysconfig/hpe.xml
 	fi
 
 	# Hide bootctrl from VINTF manifest if we don't set up virtual A/B
@@ -76,7 +76,7 @@ EOF
 <manifest version="1.0" type="device">
 </manifest>
 EOF
-		mount --bind /tmp/fakeboot.xml system/vendor/etc/vintf/manifest/android.hardware.boot@1.2.xml
+		mount --bind /tmp/fakeboot.xml /system/vendor/etc/vintf/manifest/android.hardware.boot@1.2.xml
 	fi
 
 	# Hide BLE feature from the system
@@ -89,18 +89,7 @@ EOF
 <permissions>
 </permissions>
 EOF
-		mount --bind /tmp/noble.xml system/vendor/etc/permissions/android.hardware.bluetooth_le.xml
-	fi
-
-	# Hide BLE feature from the system
-	if [ "$BT_BLE_DISABLE" -ge "1" ]; then
-cat << "EOF"
-# NOTICE: BLE is set to be disabled
-EOF
-	echo '<?xml version="1.0" encoding="utf-8"?>' > /tmp/noble.xml
-	echo '<permissions>' >> /tmp/noble.xml
-	echo '</permissions>' >> /tmp/noble.xml
-	mount --bind /tmp/noble.xml system/vendor/etc/permissions/android.hardware.bluetooth_le.xml
+		mount --bind /tmp/noble.xml /system/vendor/etc/permissions/android.hardware.bluetooth_le.xml
 	fi
 }
 
@@ -362,9 +351,6 @@ done
 setup_recovery || debug_shell fatal-err
 check_fstab
 process_fstab
-
-# shellcheck disable=SC2164
-cd /android
 
 # If neither RCVRY nor INSTALL is specified
 [ "$RCVRY" ] || [ "$INSTALL" ] || bliss_feature

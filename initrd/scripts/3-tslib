@@ -3,17 +3,17 @@ setup_tslib() {
 	# setup for pointercal
 	[ "$BOARD_USES_TSLIB" ] && return
 
-	TSLIBPATH=data/system/tslib
+	TSLIBPATH=/data/system/tslib
 	[ -e $TSLIBPATH/pointercal ] && return
 
 	mkdir -p $TSLIBPATH
-	if [ -z "$CALIBRATE" ] && [ -n "$(ls system/etc/pointercal*)" ]; then
+	if [ -z "$CALIBRATE" ] && [ -n "$(ls /system/etc/pointercal*)" ]; then
 		board=$(cat /sys/class/dmi/id/product_name)
-		[ -e system/etc/pointercal.$board ] && pointercal=system/etc/pointercal.$board
-		[ -e system/etc/pointercal ] && pointercal=system/etc/pointercal
+		[ -e /system/etc/pointercal.$board ] && pointercal=/system/etc/pointercal.$board
+		[ -e /system/etc/pointercal ] && pointercal=/system/etc/pointercal
 		cp $pointercal $TSLIBPATH/pointercal
-	elif [ -e system/etc/ts.env ]; then
-		ln -s android/data /
+	elif [ -e /system/etc/ts.env ]; then
+		ln -s /android/data /
 		mkdir /dev/graphics /dev/input
 		ln -s /dev/fb* /dev/graphics
 		ln -s /dev/event* /dev/input
@@ -21,5 +21,5 @@ setup_tslib() {
 	fi
 
 	chmod 664 $TSLIBPATH/pointercal
-	chown 1000.1000 data data/system $TSLIBPATH
+	chown 1000.1000 /data /data/system $TSLIBPATH
 }
