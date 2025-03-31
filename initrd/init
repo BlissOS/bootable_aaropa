@@ -285,7 +285,7 @@ setup_ab_loops() {
 # shellcheck disable=SC2013
 for c in $(cat /proc/cmdline); do
 	case "$c" in
-	iso-scan/filename=*) ISO=${c##*=} ;;
+	iso-scan/filename=*) ISO=${c##*=} SRC=/ ;;
 	androidboot.slot_suffix=*) SLOT=${c##*=} ;;
 	# We may no longer need EFIDISK and EFIDIR as we already have fstab
 	androidboot.efidisk=*) EFIDISK=$(find_device "${c##*=}") ;;
