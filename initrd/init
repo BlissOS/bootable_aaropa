@@ -183,6 +183,9 @@ check_sysroot() {
 	return 1
 }
 
+: ${SLEEP_SECONDS:=5}
+: ${SEARCH_INTERVAL:=2}
+
 find_sysroot_by_file() {
 	local file=$1 iter=$2 dev _
 	for _ in $(seq 0 "$iter"); do
@@ -194,7 +197,7 @@ find_sysroot_by_file() {
 			echo -e "Found at $dev\n"
 			return 0
 		done
-		sleep 5
+		sleep $SLEEP_SECONDS
 		echo -n .
 	done
 
@@ -211,8 +214,8 @@ If it took too long to detect, reboot and check your installation folder
 EOF
 	local file
 	for file in $ROOT_SEARCH_FILES; do
-		find_sysroot_by_file "$file" 5 && return 0
-		sleep 5
+		find_sysroot_by_file "$file" "$SEARCH_INTERVAL" && return 0
+		sleep $SLEEP_SECONDS
 	done
 	return 1
 }
@@ -278,22 +281,24 @@ setup_ab_loops() {
 	setup_loop "/mnt/$SRC/misc.img" $ln_path/misc
 }
 
-[ -z "$SRC" ] && [ "$BOOT_IMAGE" ] &&
-	# Avoid GRUB partition prefix
-	SRC=$(dirname "${BOOT_IMAGE#/}")
-
 # shellcheck disable=SC2013
 for c in $(cat /proc/cmdline); do
 	case "$c" in
 	iso-scan/filename=*) ISO=${c##*=} ;;
 	androidboot.slot_suffix=*) SLOT=${c##*=} ;;
-	# We may no longer need EFIDISK and EFIDIR as we already have fstab
-	androidboot.efidisk=*) EFIDISK=$(find_device "${c##*=}") ;;
-	androidboot.efidir=*) EFIDIR=${c##*=} ;;
+	# androidboot.efidisk=*) EFIDISK=$(find_device "${c##*=}") ;;
+	# androidboot.efidir=*) EFIDIR=${c##*=} ;;
 	androidboot.mode=recovery) RCVRY=1 ;;
 	*) ;;
 	esac
 done
+
+if [ -z "$SRC" ]; then
+	if [ -z "$ISO" ] && [ "$BOOT_IMAGE" ]; then
+		# Avoid GRUB partition prefix
+		SRC=$(dirname "${BOOT_IMAGE#/}")
+	fi
+fi
 
 # Most of the times they mislead devices in /dev with /dev/block, as
 # /dev/block is used in Android (booted). So this is a workaround to
@@ -307,23 +312,26 @@ ROOT=$(find_device "$ROOT")
 cd /
 # If there's no ROOT= specified, try to find one for 5 times
 if [ ! "$ROOT" ] || ! try_mount rw "$ROOT" /mnt; then
-	if [ "$ISO" ]; then
-		ROOT_SEARCH_FILES="$ISO"
-	else
-		ROOT_SEARCH_FILES="fstab.android ${BOOT_IMAGE#/} system$SLOT.?fs system$SLOT.img system$SLOT/system/build.prop system/build.prop"
+	: "${ROOT_SEARCH_FILES:="fstab.android ${BOOT_IMAGE#/} system$SLOT.?fs system$SLOT.img system$SLOT/system/build.prop system/build.prop"}"
 
-		# If is live/install mode, prior to search for $INSTALL image, default to install.sfs
-		if [ "$INSTALL" ] || grep -q 'androidboot.live=true' /proc/cmdline; then
-			ROOT_SEARCH_FILES="${INSTALL:-install.sfs} $ROOT_SEARCH_FILES"
-		fi
+	# If is live/install mode, prior to search for $INSTALL image, default to install.sfs
+	if [ "$INSTALL" ] || grep -q 'androidboot.live=true' /proc/cmdline; then
+		ROOT_SEARCH_FILES="${INSTALL:-install.sfs} $ROOT_SEARCH_FILES"
 	fi
+
+	# If is booting from iso/loopback
+	if [ "$ISO" ]; then
+		ROOT_SEARCH_FILES="$ISO $ROOT_SEARCH_FILES"
+	fi
+
 	sysroot_search
 fi || debug_shell fatal-err
 
 remount_rw
 
-[ "$ISO" ] && mount -o loop "/mnt/$SRC/$ISO" /mnt
-
+if [ "$ISO" ]; then
+	mount -o loop "/mnt/$SRC/$ISO" /mnt
+fi
 # If install is specified, but no install image found (probably wont happend)
 # Will be deprecated
 if [ "$INSTALL" ] && [ ! -f "/mnt/$SRC/$INSTALL" ]; then
@@ -337,10 +345,12 @@ if ! grep 'sse4_2' /proc/cpuinfo 1>/dev/null; then
 	echo 'WARNING: Your CPU does not support SSE4.2 instructions, the OS will not boot'
 fi
 
-[ "$RCVRY" ] &&
-	BASE=/recovery ||
-	BASE=/android
-export BASE
+if [ "$RCVRY" ]; then
+	MODE_BASE=/recovery
+else
+	MODE_BASE=/android
+fi
+export MODE_BASE
 
 # load scripts
 for s in /scripts/* /mnt/"$SRC"/scripts/*; do
@@ -401,7 +411,7 @@ else
 	[ -n "$DEBUG" ] && cp /tmp/log /android/data/bootlog.txt
 
 	# shellcheck disable=SC2093
-	exec ${SWITCH:-switch_root} $BASE /init
+	exec ${SWITCH:-switch_root} $MODE_BASE /init
 fi
 
 # avoid kernel panic
