@@ -32,9 +32,9 @@ if ls "$src"/system"$SLOT".?fs >/dev/null 2>&1; then
   _s=$_s.$(basename "$(find "$src"/system"$SLOT".?fs | head -1)" | cut -f 2 -d '.')
 elif [ -e "$src/system$SLOT.img" ]; then
   _s=$_s.img
-elif [ -s "$src/system$SLOT/default.prop" ]; then
+elif [ -s "$src/system$SLOT/system/build.prop" ]; then
   :
-elif [ -s "$src/default.prop" ]; then
+elif [ -s "$src/system/build.prop" ]; then
   _s=/
 else
   exit 1
