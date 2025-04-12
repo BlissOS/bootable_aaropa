@@ -35,7 +35,7 @@ handle_fstab_line() {
 		if [ -f "$device" ]; then
 			handle_fstab_line "/dev/loop$(setup_loop "$device")" "$2" "$3" "$4" "$5"
 		elif [ -d "$device" ]; then
-			mount --bind "$device" "$BASE/$(to_mntpt "$2")"
+			mount --bind "$device" "$MODE_BASE/$(to_mntpt "$2")"
 		fi
 		return $?
 		;;
@@ -110,6 +110,6 @@ process_fstab() {
 }
 
 link_fstab() {
-	cat $BASE/fstab.* >>/tmp/fstab.real
-	mount --bind /tmp/fstab.real $BASE/fstab.*
+	cat $MODE_BASE/fstab.* >>/tmp/fstab.real
+	mount --bind /tmp/fstab.real $MODE_BASE/fstab.*
 }
