@@ -44,8 +44,7 @@ bliss_feature() {
 
 ## DO NOT PRESS "TAP TO FIX", IT WILL FORMAT THE DRIVE!
 EOF
-
-		mount --bind /system/vendor/etc/fstab.internal.x86 /android/fstab.*
+		export REAL_FSTAB=/system/vendor/etc/fstab.internal.x86
 	fi
 
 	# Enabling AOSP features for PC
