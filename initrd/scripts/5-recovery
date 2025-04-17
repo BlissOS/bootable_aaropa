@@ -27,6 +27,8 @@ setup_recovery() {
     cd /recovery
     cpio -iud >/dev/null
   )
+
+	export REAL_FSTAB=/recovery/system/etc/recovery.fstab
 }
 
 probe_recovery() {
