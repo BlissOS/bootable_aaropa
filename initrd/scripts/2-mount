@@ -111,5 +111,13 @@ process_fstab() {
 
 link_fstab() {
 	cat $MODE_BASE/fstab.* >>/tmp/fstab.real
-	mount --bind /tmp/fstab.real $MODE_BASE/fstab.*
+	case "$MODE_BASE" in
+	/android)
+		mount --bind /tmp/fstab.real $MODE_BASE/fstab.*
+		;;
+	/recovery)
+		cp /tmp/fstab.real $MODE_BASE/fstab.*
+		cp /tmp/fstab.real $MODE_BASE/etc/recovery.fstab
+		;;
+	esac
 }
