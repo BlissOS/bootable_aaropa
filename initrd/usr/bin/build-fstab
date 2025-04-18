@@ -12,80 +12,89 @@ src=$1
 
 # check if specified device has pattern like UUID= or LABEL=
 find_device() {
-  case "$1" in
-  UUID=* | LABEL=*) busybox findfs "$1" ;;
-  *) echo "$1" ;;
-  esac
+	case "$1" in
+	UUID=* | LABEL=*) busybox findfs "$1" ;;
+	*) echo "$1" ;;
+	esac
 }
 
 # shellcheck disable=SC2013
 for c in $(cat /proc/cmdline); do
-  case "$c" in
-  androidboot.slot_suffix=*) SLOT=${c##*=} ;;
-  *) ;;
-  esac
+	case "$c" in
+	androidboot.slot_suffix=*) SLOT=${c##*=} ;;
+	*) ;;
+	esac
 done
 
+# Handling system image/folder
 _s=system\$SLOT
 
 if ls "$src"/system"$SLOT".?fs >/dev/null 2>&1; then
-  _s=$_s.$(basename "$(find "$src"/system"$SLOT".?fs | head -1)" | cut -f 2 -d '.')
+	_s=$_s.$(basename "$(find "$src"/system"$SLOT".?fs | head -1)" | cut -f 2 -d '.')
 elif [ -e "$src/system$SLOT.img" ]; then
-  _s=$_s.img
+	_s=$_s.img
 elif [ -s "$src/system$SLOT/system/build.prop" ]; then
-  :
+	: # Do nothing
 elif [ -s "$src/system/build.prop" ]; then
-  _s=/
+	_s=/
 else
-  exit 1
+	exit 1
 fi
 
 echo -e "\$FS/$_s  system\$SLOT"
 
+# Handling kernel, initrd, recovery and misc
 for _f in \
-  kernel\$SLOT \
-  initrd\$SLOT.img \
-  recovery\$SLOT.img \
-  ramdisk-recovery.img \
-  misc.img; do
-  if [ -e "$src/${_f//'$SLOT'/"$SLOT"}" ]; then
-    echo -e "\$FS/$_f  ${_f%%.*}"
-  fi
+	kernel\$SLOT \
+	initrd\$SLOT.img \
+	recovery\$SLOT.img \
+	ramdisk-recovery.img \
+	misc.img; do
+	# shellcheck disable=SC2016
+	if [ -e "$src/${_f//'$SLOT'/"$SLOT"}" ]; then
+		echo -e "\$FS/$_f  ${_f%%.*}"
+	fi
 done
 
+# Handling data
 _d=${DATA:=${2:-data.img}}
-[ "$_d" = "nodata" ] && exit 0
+[ "$_d" = nodata ] && exit 0
 
 _d_fs=auto
 _d_flags=defaults
-_d_aflags=defaults
+_d_a_flags=defaults
 if [ -b "$(find_device "$_d")" ]; then
-  _d_flags=noatime
-elif [ "$_d" = "9p" ]; then
-  _d_fs=9p
-  _d_flags='trans=virtio,version=9p2000.L,posixacl'
-elif [ "$_d" = "virtiofs" ]; then
-  _d_fs=virtiofs
-  _d_flags=nosuid,nodev,noatime
+	_d_flags=noatime
+elif [ "$_d" = 9p ]; then
+	_d_fs=9p
+	_d_flags='trans=virtio,version=9p2000.L,posixacl'
+elif [ "$_d" = virtiofs ]; then
+	_d_fs=virtiofs
+	_d_flags=nosuid,nodev,noatime
 elif [ -f "$src/$_d" ]; then
-  _d=\$FS/$_d
-  _d_flags=loop,noatime
+	_d=\$FS/$_d
+	_d_flags=loop,noatime
 else
-  [ -d "$src/$_d" ] || _d=data
-  if [ -d "$src/$_d" ]; then
-    _d=\$FS/$_d
-    _d_fs=
-    _d_flags=
-    _d_aflags=
-  else
-    _d=tmpfs
-    _d_fs=tmpfs
-  fi
+	[ -d "$src/$_d" ] || _d=data
+	if [ -d "$src/$_d" ] || mkdir -p "$src/$_d"; then
+		_d=\$FS/$_d
+		_d_fs=
+		_d_flags=
+		_d_a_flags=
+	else
+		_d=tmpfs
+		_d_fs=tmpfs
+	fi
 fi
 
-echo -e "$_d  userdata  $_d_fs  $_d_flags  $_d_aflags"
+echo -e "$_d  userdata  $_d_fs  $_d_flags  $_d_a_flags"
 
+# Handling bootloader
 _b=${3:-"\$FS/boot"}
-[ "$_b" = "noboot" ] && exit 0
+[ "$_b" = noboot ] && exit 0
 
 echo -e "$_b  bootloader"
+
+# Handling UEFI capability
+[ -d /sys/firmware/efi ] &&
+	echo -e 'none  /sys/firmware/efi/efivars  efivarfs  defaults  defaults'
