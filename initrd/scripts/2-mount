@@ -9,9 +9,9 @@
 
 to_mntpt() {
 	case "$1" in
-	bootloader) echo boot ;;
-	esp) echo boot/efi ;;
-	userdata) echo data ;;
+	bootloader) echo /boot ;;
+	esp) echo /boot/efi ;;
+	userdata) echo /data ;;
 	/*) echo "$1" ;;
 	*) return 1 ;;
 	esac
@@ -87,7 +87,7 @@ handle_fstab_line() {
 			esac
 
 			case "$is_nodev" in
-			nodev*) echo "$1 /$(to_mntpt "$2") $3 $4 $5" ;;
+			nodev*) echo "$1 $(to_mntpt "$2") $3 $4 $5" ;;
 			*) ;;
 			esac
 			return $?
