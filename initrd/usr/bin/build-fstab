@@ -58,43 +58,43 @@ done
 
 # Handling data
 _d=${DATA:=${2:-data.img}}
-[ "$_d" = nodata ] && exit 0
-
-_d_fs=auto
-_d_flags=defaults
-_d_a_flags=defaults
-if [ -b "$(find_device "$_d")" ]; then
-	_d_flags=noatime
-elif [ "$_d" = 9p ]; then
-	_d_fs=9p
-	_d_flags='trans=virtio,version=9p2000.L,posixacl'
-elif [ "$_d" = virtiofs ]; then
-	_d_fs=virtiofs
-	_d_flags=nosuid,nodev,noatime
-elif [ -f "$src/$_d" ]; then
-	_d=\$FS/$_d
-	_d_flags=loop,noatime
-else
-	[ -d "$src/$_d" ] || _d=data
-	if [ -d "$src/$_d" ] || mkdir -p "$src/$_d"; then
+if [ "$_d" != nodata ]; then
+	_d_fs=auto
+	_d_flags=defaults
+	_d_a_flags=defaults
+	if [ -b "$(find_device "$_d")" ]; then
+		_d_flags=noatime
+	elif [ "$_d" = 9p ]; then
+		_d_fs=9p
+		_d_flags='trans=virtio,version=9p2000.L,posixacl'
+	elif [ "$_d" = virtiofs ]; then
+		_d_fs=virtiofs
+		_d_flags=nosuid,nodev,noatime
+	elif [ -f "$src/$_d" ]; then
 		_d=\$FS/$_d
-		_d_fs=
-		_d_flags=
-		_d_a_flags=
+		_d_flags=loop,noatime
 	else
-		_d=tmpfs
-		_d_fs=tmpfs
+		[ -d "$src/$_d" ] || _d=data
+		if [ -d "$src/$_d" ] || mkdir -p "$src/$_d"; then
+			_d=\$FS/$_d
+			_d_fs=
+			_d_flags=
+			_d_a_flags=
+		else
+			_d=tmpfs
+			_d_fs=tmpfs
+		fi
 	fi
+
+	echo -e "$_d  userdata  $_d_fs  $_d_flags  $_d_a_flags"
 fi
-
-echo -e "$_d  userdata  $_d_fs  $_d_flags  $_d_a_flags"
-
 # Handling bootloader
 _b=${3:-"\$FS/boot"}
-[ "$_b" = noboot ] && exit 0
-
-echo -e "$_b  bootloader"
+[ "$_b" != noboot ] &&
+	echo -e "$_b  bootloader"
 
 # Handling UEFI capability
 [ -d /sys/firmware/efi ] &&
 	echo -e 'none  /sys/firmware/efi/efivars  efivarfs  defaults  defaults'
+
+exit 0
