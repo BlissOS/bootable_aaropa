@@ -35,7 +35,7 @@ handle_fstab_line() {
 		if [ -f "$device" ]; then
 			handle_fstab_line "/dev/loop$(setup_loop "$device")" "$2" "$3" "$4" "$5"
 		elif [ -d "$device" ]; then
-			mount --bind "$device" "$MODE_BASE/$(to_mntpt "$2")"
+			mount --bind "$device" "$MODE_BASE$(to_mntpt "$2")"
 		fi
 		return $?
 		;;
@@ -50,7 +50,7 @@ handle_fstab_line() {
 		echo "#>$2 $(ls -ld "$device" | awk '{print $5$6}' | tr ',' ' ')"
 
 		if target=$(to_mntpt "$2"); then
-			echo "/dev/block/by-name/$2 /$target $3 $4 $5"
+			echo "/dev/block/by-name/$2 $target $3 $4 $5"
 		fi
 
 		case "$2" in
