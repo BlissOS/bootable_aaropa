@@ -1,0 +1,35 @@
+# shellcheck shell=ksh
+# By Shadichy <shadichy@blisslabs.org>
+# Last updated 2025/05/29
+#
+# License: GNU Public License
+# We explicitely grant the right to use the scripts
+# with Android-x86 project.
+#
+
+copy_to_ram() {
+	local free_ram required_space
+	free_ram=$(free -m | grep Mem | awk '{print $4}' | tail -1) # in MiB
+	required_space=$(du -sm "/mnt/$SRC" | awk '{print $1}')
+
+	# RAM must be free at least (iso size) + (300MiB for install mode/1GiB for live boot mode) to activate copytoram mode
+	if [ "$INSTALL" ]; then
+		required_space=$((required_space + 300))
+		else
+		required_space=$((required_space + 1024))
+	fi
+
+	if [ $((free_ram > required_space)) = 0 ]; then
+		echo "WARNING: Your machine does NOT support copytoram!"
+		echo "WARNING: Do NOT unplug the installation media while it's running!"
+		return
+	fi
+
+	local altdir=/mnt_copy
+	mkdir $altdir
+	mount -t tmpfs tmpfs $altdir
+	# must add ./ in case $SRC is empty
+	cp -r "/mnt/./$SRC" $altdir
+	umount-r /mnt
+	mount --move $altdir /mnt
+}
