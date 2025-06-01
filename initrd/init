@@ -357,7 +357,9 @@ for s in /scripts/* /mnt/"$SRC"/scripts/*; do
 	test -e "$s" && source "$s"
 done
 
-[ "$COPYTORAM" = true ] && copy_to_ram
+if [ "$COPYTORAM" ] && [ "$COPYTORAM" != false ]; then
+	copy_to_ram
+fi
 
 setup_recovery || debug_shell fatal-err
 check_fstab
