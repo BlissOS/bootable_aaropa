@@ -15,7 +15,7 @@ copy_to_ram() {
 	# RAM must be free at least (iso size) + (300MiB for install mode/1GiB for live boot mode) to activate copytoram mode
 	if [ "$INSTALL" ]; then
 		required_space=$((required_space + 300))
-		else
+	else
 		required_space=$((required_space + 1024))
 	fi
 
@@ -32,4 +32,16 @@ copy_to_ram() {
 	cp -r "/mnt/./$SRC" $altdir
 	umount-r /mnt
 	mount --move $altdir /mnt
+	cat <<'EOF'
+===================================================
+	           Copy to RAM is completed!
+EOF
+	if [ "$INSTALL" ]; then
+		cat <<'EOF'
+	  You can unplug the installation CD/USB now.
+EOF
+	fi
+	cat <<'EOF'
+===================================================
+EOF
 }

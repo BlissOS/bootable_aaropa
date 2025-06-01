@@ -16,7 +16,7 @@ export PATH
 
 # ASCII art
 text_art() {
-	cat <<"EOF"
+	cat <<'EOF'
       ___           ___                   ___           ___
      /\  \         /\__\      ___        /\  \         /\  \
     /::\  \       /:/  /     /\  \      /::\  \       /::\  \
