@@ -28,8 +28,16 @@ LOCAL_MODULE_PATH := $(HOST_OUT)/bin
 
 include $(BUILD_PREBUILT)
 
+include $(CLEAR_VARS)
+LOCAL_MODULE := repack_ramdisk_recovery
+LOCAL_SRC_FILES := bin/repack_ramdisk_recovery
+LOCAL_MODULE_CLASS := EXECUTABLES
+LOCAL_MODULE_PATH := $(HOST_OUT)/bin
+
+include $(BUILD_PREBUILT)
+
 .PHONY: iso_scripts
-iso_scripts: iso_from_target_files
+iso_scripts: iso_from_target_files repack_ramdisk_recovery
 
 # use squashfs or erofs for iso, unless explictly disabled
 ifneq ($(USE_SQUASHFS),0)

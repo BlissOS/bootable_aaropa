@@ -1,0 +1,105 @@
+#!/bin/bash
+#
+# Copyright (C) 2025 BlissLabs
+#
+# Licensed under the GNU General Public License Version 2 or later.
+# You may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.gnu.org/licenses/gpl.html
+#
+
+# Function to display help
+display_help() {
+  cat <<EOF
+Copyright (C) 2025 BlissLabs
+
+repack_ramdisk_recovery script, created by BlissLabs.
+Given a target-files zipfile, repack ramdisk-recovery.img inside and then repack the zip
+
+Usage: repack_ramdisk_recovery <input_file_location> <output_file_location>
+EOF
+  exit 0
+}
+
+# Process options
+while (("$#")); do
+  case "$1" in
+  --help | -h)
+    display_help
+    ;;
+  *)
+    break
+    ;;
+  esac
+done
+
+# Print usage if argument is not enough
+if [ $# -lt 2 ]; then
+  echo "Usage: repack_ramdisk_recovery <input_file_location> <output_file_location>"
+  exit 1
+fi
+
+# Check for required command that are being used
+required_progs=("unzip" "zip" "mkbootfs" "gzip")
+
+for cmd in "${required_progs[@]}"; do
+  if ! command -v $cmd >/dev/null 2>&1; then
+    echo "$cmd does not exist."
+    exit 1
+  fi
+done
+
+# Process input and output file locations
+INPUT_FILE_LOCATION=${@: -2:1}
+OUTPUT_FILE_LOCATION=${@: -1}
+WORKDIR=$(pwd)
+
+# Check if the input is target zip
+target_zip_content=(
+  "META/recovery_filesystem_config.txt"
+  "RADIO/ramdisk-recovery.img"
+  "RECOVERY/RAMDISK"
+)
+
+for content in "${target_zip_content[@]}"; do
+  unzip -l $INPUT_FILE_LOCATION | grep $content
+  if [ $? -ne 0 ]; then
+    echo "Error: target is not a target-files-package"
+    exit 1
+  fi
+done
+
+# Run the command
+
+## Create temp directory to extract stuff
+tmp_dir="$(pwd)/.tmp_zip_dir"
+rm -rf $tmp_dir # Remove before start to work
+mkdir $tmp_dir
+
+## Unzip target files
+unzip $INPUT_FILE_LOCATION -d $tmp_dir
+
+## Remove the old recovery ramdisk
+rm -r $tmp_dir/RADIO/ramdisk-recovery.img
+
+## Make a new one 
+cd $tmp_dir
+mkbootfs -f META/recovery_filesystem_config.txt RECOVERY/RAMDISK | gzip -9 > RADIO/ramdisk-recovery.img
+
+## zip it up once done
+zip -r $WORKDIR/$OUTPUT_FILE_LOCATION .
+
+## go back
+cd $WORKDIR
+
+# Check if the command was successful
+if [ $? -eq 0 ]; then
+  echo "Command was successful, file is in $WORKDIR/$OUTPUT_FILE_LOCATION"
+else
+  echo "Command failed, please try again !"
+  exit 1
+fi
+
+# Remove the work dir regardless of success or failure
+rm -rf $tmp_dir
