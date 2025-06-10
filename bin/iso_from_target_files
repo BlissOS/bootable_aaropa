@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright (C) 2024 BlissLabs
+# Copyright (C) 2025 BlissLabs
 #
 # Licensed under the GNU General Public License Version 2 or later.
 # You may not use this file except in compliance with the License.
@@ -11,9 +11,10 @@
 
 PATH=/sbin:/usr/sbin:/bin:/usr/bin
 SYSTEM_FS=efs
-VER=$(date "+%Y-%m-%d")
+DATE=$(date "+%Y-%m-%d")
+VER=$DATE
 ARCH=$(uname -m)
-LABEL=BlissOS
+LABEL=Android-x86
 AAROPA_LOCATION=
 SCRIPT_LOCATION=$(dirname "$(readlink -f "$0")")
 BOARD_KERNEL_CMDLINE=
@@ -21,7 +22,7 @@ BOARD_KERNEL_CMDLINE=
 # Function to display help
 display_help() {
   cat <<EOF
-Copyright (C) 2024 BlissLabs
+Copyright (C) 2025 BlissLabs
 
 iso_from_target_files script, original idea from LibreMobileOS, created by BlissLabs.
 Given a target-files zipfile, produces an iso image like a standard Android-x86 image.
@@ -30,8 +31,9 @@ Usage: iso_from_target_files <options> <input_file_location> <output_file_locati
 
 Options:
 --cmdline|-c <string>             Set custom cmdline into grub2 & isolinux config
---system-fs|-s <erofs|squashfs>   Set the system file system to erofs or squashfs (default is erofs)
---label <string>                  Set the label to the provided string
+--system-fs|-s <erofs|squashfs>   Set the system file system to erofs or squashfs (default: erofs)
+--label <string>                  Set the label to the provided string (default: Android-x86)
+--version|-ver <string>           Set the version number of the provided OS (default: date in YYYY-MM-DD format)
 --aaropa-location|-n <path>       Set the location of the aaropa directory
 --help|-h                         Display this help message
 EOF
@@ -56,6 +58,12 @@ while (("$#")); do
   --label | -l)
     if [ -n "$2" ]; then
       LABEL="$2"
+    fi
+    shift 2
+    ;;
+  --version | -ver)
+    if [ -n "$2" ]; then
+      VER="$2"
     fi
     shift 2
     ;;
@@ -112,7 +120,7 @@ fi
 target_zip_content=(
   "BOOT/cmdline"
   "BOOT/kernel"
-  "IMAGES/recovery.img"
+  "RADIO/ramdisk-recovery.img"
   "IMAGES/system.img"
   "RADIO/initrd.img"
 )
@@ -138,7 +146,7 @@ unzip $INPUT_FILE_LOCATION "${target_zip_content[@]}" -d $tmp_dir
 ## Move required files to correct places
 mv $tmp_dir/BOOT/cmdline $tmp_dir/cmdline.txt
 mv $tmp_dir/BOOT/kernel $tmp_dir/kernel
-mv $tmp_dir/IMAGES/recovery.img $tmp_dir/ramdisk-recovery.img
+mv $tmp_dir/RADIO/ramdisk-recovery.img $tmp_dir/ramdisk-recovery.img
 mv $tmp_dir/IMAGES/system.img $tmp_dir/system.img
 mv $tmp_dir/RADIO/initrd.img $tmp_dir/initrd.img
 rm -rf $tmp_dir/BOOT $tmp_dir/IMAGES $tmp_dir/RADIO
@@ -156,12 +164,12 @@ elif [[ "$SYSTEM_FS" == "sfs" ]]; then
 fi
 
 ## Copy files from aaropa
-cp -t $tmp_dir -r $AAROPA_LOCATION/iso/*
+cp -t $tmp_dir -r $AAROPA_LOCATION/iso/.
 
 ## Editing some config files
 # May consider to remove this
-sed -i "s|OS_TITLE|$LABEL-$ARCH|" $tmp_dir/boot/grub/grub.cfg
-sed -i "s|BlissOSLive|${LABEL}_${VER//-/}|" $tmp_dir/boot/grub/grub.cfg
+sed -i "s|OS_TITLE|$LABEL|" $tmp_dir/boot/grub/grub.cfg
+sed -i "s|BlissOSLive|${LABEL}_${DATE//-/}|" $tmp_dir/boot/grub/grub.cfg
 sed -i "s|CMDLINE|$BOARD_KERNEL_CMDLINE|" $tmp_dir/boot/grub/grub.cfg
 sed -i "s|VER|$VER|" $tmp_dir/boot/grub/grub.cfg
 
