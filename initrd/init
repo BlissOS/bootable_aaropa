@@ -295,7 +295,7 @@ done
 if [ -z "$SRC" ]; then
 	if [ -z "$ISO" ] && [ "$BOOT_IMAGE" ]; then
 		# Avoid GRUB partition prefix
-		SRC=$(dirname "${BOOT_IMAGE#/}")
+		SRC=$(dirname "${BOOT_IMAGE#*/}")
 	fi
 fi
 
@@ -311,7 +311,7 @@ ROOT=$(find_device "$ROOT")
 cd /
 # If there's no ROOT= specified, try to find one for 5 times
 if [ ! "$ROOT" ] || ! try_mount rw "$ROOT" /mnt; then
-	: "${ROOT_SEARCH_FILES:="fstab.android ${BOOT_IMAGE#/} system$SLOT.?fs system$SLOT.img system$SLOT/system/build.prop system/build.prop"}"
+	: "${ROOT_SEARCH_FILES:="fstab.android ${BOOT_IMAGE#*/} system$SLOT.?fs system$SLOT.img system$SLOT/system/build.prop system/build.prop"}"
 
 	# If is live/install mode, prior to search for $INSTALL image, default to install.sfs
 	if [ "$INSTALL" ] || grep -q 'androidboot.live=true' /proc/cmdline; then
