@@ -318,6 +318,13 @@ if [ ! "$ROOT" ] || ! try_mount rw "$ROOT" /mnt; then
 		ROOT_SEARCH_FILES="${INSTALL:-install.sfs} $ROOT_SEARCH_FILES"
 	fi
 
+
+	# If is booting from Ventoy GRUB2 Mode
+	if [ "$VTOY_PATH"]; then
+		ISO=$(/ventoy/tool/vtoydump -f /ventoy/ventoy_os_param)
+		ISO=${ISO##*'#'}
+	fi
+
 	# If is booting from iso/loopback
 	if [ "$ISO" ]; then
 		ROOT_SEARCH_FILES="$ISO $ROOT_SEARCH_FILES"
