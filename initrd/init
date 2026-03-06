@@ -306,18 +306,24 @@ for _d in /dev/[hmnsvx][dmrv][0-9a-z]*; do
 	ln -s "$_d" /dev/block/
 done
 
+if [ 0"$DEBUG" -gt 0 ]; then
+	echo -e "\nType 'exit' to continue booting...\n"
+	debug_shell debug-pre
+fi
+
 ROOT=$(find_device "$ROOT")
 
 cd /
 # If there's no ROOT= specified, try to find one for 5 times
-if [ ! "$ROOT" ] || ! try_mount rw "$ROOT" /mnt; then
+if [ ! "$ROOT" ] || ! try_mount ro "$ROOT" /mnt; then
 	: "${ROOT_SEARCH_FILES:="fstab.android ${BOOT_IMAGE#*/} system$SLOT.?fs system$SLOT.img system$SLOT/system/build.prop system/build.prop"}"
 
 	# If is live/install mode, prior to search for $INSTALL image, default to install.sfs
 	if [ "$INSTALL" ] || grep -q 'androidboot.live=true' /proc/cmdline; then
 		ROOT_SEARCH_FILES="${INSTALL:-install.sfs} $ROOT_SEARCH_FILES"
+	else
+		mount -o rw,remount /mnt
 	fi
-
 
 	# If is booting from Ventoy GRUB2 Mode
 	if [ "$VTOY_PATH"]; then
@@ -379,7 +385,7 @@ probe_recovery
 
 link_fstab
 
-if [ 0"$DEBUG" -gt 0 ]; then
+if [ 0"$DEBUG" -gt 1 ]; then
 	echo -e "\nType 'exit' to continue booting...\n"
 	debug_shell debug-found
 fi
@@ -398,7 +404,7 @@ setup_dpi
 post_detect
 post_setup_recovery
 
-if [ 0"$DEBUG" -gt 1 ]; then
+if [ 0"$DEBUG" -gt 2 ]; then
 	echo -e "\nUse Alt-F1/F2/F3 to switch between virtual consoles"
 	echo -e "Type 'exit' to enter Android...\n"
 
