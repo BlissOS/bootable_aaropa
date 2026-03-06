@@ -321,8 +321,6 @@ if [ ! "$ROOT" ] || ! try_mount ro "$ROOT" /mnt; then
 	# If is live/install mode, prior to search for $INSTALL image, default to install.sfs
 	if [ "$INSTALL" ] || grep -q 'androidboot.live=true' /proc/cmdline; then
 		ROOT_SEARCH_FILES="${INSTALL:-install.sfs} $ROOT_SEARCH_FILES"
-	else
-		mount -o rw,remount /mnt
 	fi
 
 	# If is booting from Ventoy GRUB2 Mode
