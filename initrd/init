@@ -292,6 +292,12 @@ for c in $(cat /proc/cmdline); do
 	esac
 done
 
+# If is booting from Ventoy GRUB2 Mode
+if [ "$VTOY_PATH" ]; then
+	ISO=$(/ventoy/tool/vtoydump -f /ventoy/ventoy_os_param)
+	ISO=${ISO##*'#'}
+fi
+
 if [ -z "$SRC" ]; then
 	if [ -z "$ISO" ] && [ "$BOOT_IMAGE" ]; then
 		# Avoid GRUB partition prefix
@@ -321,12 +327,6 @@ if [ ! "$ROOT" ] || ! try_mount ro "$ROOT" /mnt; then
 	# If is live/install mode, prior to search for $INSTALL image, default to install.sfs
 	if [ "$INSTALL" ] || grep -q 'androidboot.live=true' /proc/cmdline; then
 		ROOT_SEARCH_FILES="${INSTALL:-install.sfs} $ROOT_SEARCH_FILES"
-	fi
-
-	# If is booting from Ventoy GRUB2 Mode
-	if [ "$VTOY_PATH"]; then
-		ISO=$(/ventoy/tool/vtoydump -f /ventoy/ventoy_os_param)
-		ISO=${ISO##*'#'}
 	fi
 
 	# If is booting from iso/loopback
