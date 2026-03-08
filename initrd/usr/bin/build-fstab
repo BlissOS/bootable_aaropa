@@ -57,12 +57,18 @@ for _f in \
 done
 
 # Handling data
+set_d_tmpfs() {
+	_d=tmpfs
+	_d_fs=tmpfs
+}
 _d=${DATA:=${2:-data.img}}
-if [ "$_d" != nodata ]; then
+handle_d() {
 	_d_fs=auto
 	_d_flags=defaults
 	_d_a_flags=defaults
-	if [ -b "$(find_device "$_d")" ]; then
+	if [ "$_d" = nodata ]; then
+		set_d_tmpfs
+	elif [ -b "$(find_device "$_d")" ]; then
 		_d_flags=noatime
 	elif [ "$_d" = 9p ]; then
 		_d_fs=9p
@@ -75,19 +81,22 @@ if [ "$_d" != nodata ]; then
 		_d_flags=loop,noatime
 	else
 		[ -d "$src/$_d" ] || _d=data
-		if [ -d "$src/$_d" ] || mkdir -p "$src/$_d"; then
-			_d=\$FS/$_d
-			_d_fs=
-			_d_flags=
-			_d_a_flags=
-		else
-			_d=tmpfs
-			_d_fs=tmpfs
-		fi
-	fi
 
-	echo -e "$_d  userdata  $_d_fs  $_d_flags  $_d_a_flags"
-fi
+		if ! { [ -d "$src/$_d" ] || mkdir "$src/$_d" "$src/DATA" 2>/dev/null; }; then
+			set_d_tmpfs
+			return
+		fi
+
+		rm -rf "$src/DATA"
+		_d=\$FS/$_d
+		_d_fs=
+		_d_flags=
+		_d_a_flags=
+	fi
+}
+handle_d
+echo -e "$_d  userdata  $_d_fs  $_d_flags  $_d_a_flags"
+
 # Handling bootloader
 _b=${3:-"\$FS/boot"}
 [ "$_b" != noboot ] &&
