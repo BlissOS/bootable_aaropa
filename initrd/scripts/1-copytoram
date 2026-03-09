@@ -8,18 +8,18 @@
 #
 
 copy_to_ram() {
-	local free_ram required_space
+	local free_ram required_space additional_space
 	free_ram=$(free -m | grep Mem | awk '{print $4}' | tail -1) # in MiB
 	required_space=$(du -sm "/mnt/$SRC" | awk '{print $1}')
 
 	# RAM must be free at least (iso size) + (300MiB for install mode/1GiB for live boot mode) to activate copytoram mode
 	if [ "$INSTALL" ]; then
-		required_space=$((required_space + 300))
+		additional_space=300
 	else
-		required_space=$((required_space + 1024))
+		additional_space=1024
 	fi
 
-	if [ $((free_ram > required_space)) = 0 ]; then
+	if [ $((required_space + additional_space < free_ram)) = 0 ]; then
 		echo "WARNING: Your machine does NOT support copytoram!"
 		echo "WARNING: Do NOT unplug the installation media while it's running!"
 		return
@@ -27,14 +27,17 @@ copy_to_ram() {
 
 	local altdir=/mnt_copy
 	mkdir $altdir
-	mount -t tmpfs tmpfs $altdir
-	# must add ./ in case $SRC is empty
-	cp -r "/mnt/./$SRC" $altdir
+	mount -t tmpfs -o size=$((required_space + 64))M tmpfs $altdir
+	cp -t $altdir -r "/mnt/$SRC/."
+
 	umount-r /mnt
 	mount --move $altdir /mnt
+
+	export DATA=nodata
+
 	cat <<'EOF'
 ===================================================
-	           Copy to RAM is completed!
+	      Copy to RAM is completed!
 EOF
 	if [ "$INSTALL" ]; then
 		cat <<'EOF'
