@@ -296,6 +296,7 @@ done
 if [ "$VTOY_PATH" ]; then
 	ISO=$(/ventoy/tool/vtoydump -f /ventoy/ventoy_os_param)
 	ISO=${ISO##*'#'}
+	export ISO
 fi
 
 if [ -z "$SRC" ]; then
@@ -317,7 +318,15 @@ if [ 0"$DEBUG" -gt 0 ]; then
 	debug_shell debug-pre
 fi
 
-ROOT=$(find_device "$ROOT")
+# Wait for ROOT to appear
+ROOTWAIT=${ROOTWAIT:-30} # Default to 30 sec
+for _s in $(seq 0 $ROOTWAIT); do
+	_root=$(find_device "$ROOT")
+	[ "$_root" ] && break
+	sleep 1
+done
+ROOT=$_root
+unset _root
 
 cd /
 # If there's no ROOT= specified, try to find one for 5 times
