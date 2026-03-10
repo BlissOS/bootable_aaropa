@@ -293,10 +293,9 @@ for c in $(cat /proc/cmdline); do
 done
 
 # If is booting from Ventoy GRUB2 Mode
-if [ "$VTOY_PATH" ]; then
-	ISO=$(/ventoy/tool/vtoydump -f /ventoy/ventoy_os_param)
-	ISO=${ISO##*'#'}
-	export ISO
+if [ -d "$VTOY_PATH" ]; then
+	"$VTOY_PATH/hook/android/ventoy-disk.sh"
+	export ROOT=/dev/mapper/ventoy
 fi
 
 if [ -z "$SRC" ]; then
