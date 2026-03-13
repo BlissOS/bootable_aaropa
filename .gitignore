@@ -5,3 +5,4 @@ boot_hybrid.img*
 iso/
 initrd_lib/
 *.iso
+version.txt

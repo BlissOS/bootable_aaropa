@@ -1,7 +1,9 @@
 #!/bin/bash
 
-# URL for the GitHub release page
+# URLs for the GitHub release page and API
 RELEASE_URL="https://github.com/Ananda-Aropa/aaropa_rootfs_installer_blissos/releases/latest"
+API_URL="https://api.github.com/repos/Ananda-Aropa/aaropa_rootfs_installer_blissos/releases/latest"
+VERSION_FILE="version.txt"
 
 # Get the script's directory and change to it
 SCRIPT_DIR=$(dirname "$0")
@@ -14,6 +16,44 @@ FILES=(
   "grub-rescue.iso"
   "boot_hybrid.img"
 )
+
+# Function to get the latest tag from GitHub API
+get_latest_version() {
+  if command -v curl &> /dev/null; then
+    curl -s "$API_URL" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
+  elif command -v wget &> /dev/null; then
+    wget -qO- "$API_URL" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/'
+  fi
+}
+
+# Function to check version and optionally exit
+check_version() {
+  echo "Checking for the latest version..."
+  LATEST_VERSION=$(get_latest_version)
+  
+  if [[ -z "$LATEST_VERSION" ]]; then
+    echo "Warning: Could not determine the latest version from GitHub. Proceeding with download..."
+    return 0
+  fi
+
+  if [[ -f "$VERSION_FILE" ]]; then
+    LOCAL_VERSION=$(cat "$VERSION_FILE")
+    if [[ "$LATEST_VERSION" == "$LOCAL_VERSION" ]]; then
+      echo "You already have the latest version ($LATEST_VERSION). Skipping download."
+      exit 0
+    fi
+  fi
+  
+  echo "New version found: $LATEST_VERSION (Current: ${LOCAL_VERSION:-None})"
+}
+
+# Function to update the version file
+update_version() {
+  if [[ -n "$LATEST_VERSION" ]]; then
+    echo "$LATEST_VERSION" > "$VERSION_FILE"
+    echo "Updated $VERSION_FILE to $LATEST_VERSION."
+  fi
+}
 
 # Function to remove existing files from the FILES list and directories
 remove_existing_files() {
@@ -80,7 +120,7 @@ extract_initrd_lib() {
 # Function to display the help message
 show_help() {
   cat << EOF
-Copyright (C) 2024 BlissLabs
+Copyright (C) 2026 BlissLabs
 
 Usage: ./download.sh [OPTION]
 
@@ -97,6 +137,9 @@ case "$1" in
     ;;
   
   --initrd-only)
+    # Check the version first
+    check_version
+
     # Remove existing files before starting the download
     remove_existing_files
 
@@ -108,10 +151,16 @@ case "$1" in
     fi
 
     extract_initrd_lib
+    
+    # Save the new version
+    update_version
     echo "Script execution complete!"
     ;;
   
   *)
+    # Check the version first
+    check_version
+
     # Remove existing files before starting the download
     remove_existing_files
 
@@ -133,6 +182,8 @@ case "$1" in
     move_install_sfs
     extract_initrd_lib
 
+    # Save the new version
+    update_version
     echo "Script execution complete!"
     ;;
 esac
