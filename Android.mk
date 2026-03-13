@@ -18,6 +18,7 @@ ifneq ($(filter x86%,$(TARGET_ARCH)),)
 LOCAL_PATH := $(call my-dir)
 
 RELEASE_OS_TITLE := BlissOS
+SHORTEN_RELEASE_OS_TITLE := BOS15
 VER := $(VERSION)
 
 include $(CLEAR_VARS)
@@ -97,14 +98,43 @@ ifneq ($(shell test -d $(LOCAL_PATH)/iso && echo exists), exists)
 endif
 
 MOD_DATE := $(shell date +"%Y%m%d%H%M%S"00)
-DISK_LABEL := $(if $(RELEASE_OS_TITLE),$(RELEASE_OS_TITLE),Android-x86)_$(shell date "+%Y%m%d")
+
+# There are 2 types of labels now, OS_LABEL & DISK_LABEL.
+# OS_LABEL will be used for label in grub.cfg
+# While DISK_LABEL will be used for label in iso
+
+# OS_LABEL logic
+OS_LABEL := $(if $(RELEASE_OS_TITLE),$(RELEASE_OS_TITLE),Android-x86)_$(shell date "+%Y%m%d")
+
+# DISK_LABEL logic (Format: XXXXX_YYJJJ)
+# Get date format: 2-digit year (%y) + 3-digit day of year (%j)
+DISK_DATE_FORMAT := $(shell date "+%y%j")
+
+ifneq ($(SHORTEN_RELEASE_OS_TITLE),)
+    # Check if SHORTEN_RELEASE_OS_TITLE is exactly 5 characters long
+    TITLE_LEN := $(shell echo -n "$(SHORTEN_RELEASE_OS_TITLE)" | wc -c)
+    ifeq ($(TITLE_LEN),5)
+        OS_PREFIX := $(SHORTEN_RELEASE_OS_TITLE)
+    else
+        # Print warning if format is incorrect and fallback to default
+        $(warning SHORTEN_RELEASE_OS_TITLE [$(SHORTEN_RELEASE_OS_TITLE)] is not exactly 5 characters. Falling back to default A86xx)
+        OS_PREFIX := A86xx
+    endif
+else
+    # Default if undefined
+    OS_PREFIX := A86xx
+endif
+
+OS_PREFIX_UPPER := $(shell echo "$(OS_PREFIX)" | tr '[:lower:]' '[:upper:]')
+DISK_LABEL := $(OS_PREFIX_UPPER)_$(DISK_DATE_FORMAT)
+
 BOOT_HYBRID := $(LOCAL_PATH)/boot_hybrid.img
 iso_dir := $(PRODUCT_OUT)/iso
 $(iso_dir): $(shell find $(LOCAL_PATH)/iso -type f | sort -r) | $(ACP)
 	$(hide) rm -rf $@
 	$(ACP) -pr $(dir $<) $@
 	$(hide) sed -i "s|OS_TITLE|$(if $(RELEASE_OS_TITLE),$(RELEASE_OS_TITLE),Android-x86)|" $@/boot/grub/grub.cfg
-	$(hide) sed -i "s|BlissOSLive|$(DISK_LABEL)|" $@/boot/grub/grub.cfg
+	$(hide) sed -i "s|BlissOSLive|$(OS_LABEL)|" $@/boot/grub/grub.cfg
 	$(hide) sed -i "s|CMDLINE|$(BOARD_KERNEL_CMDLINE)|" $@/boot/grub/grub.cfg
 	$(hide) sed -i "s|VER|$(VER)|" $@/boot/grub/grub.cfg
 	$(hide) echo "$(BOARD_KERNEL_CMDLINE)" > $@/cmdline.txt
